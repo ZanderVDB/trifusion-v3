@@ -236,13 +236,14 @@ app.post('/api/login', (req, res) => {
       const settings = getCompanySettings(company.companyId);
       tokenStore[token] = {
         username,
-        role:      user.role,
-        name:      user.name,
-        companyId: company.companyId,
-        companyName: settings.companyName || company.companyName,
-        installer: user.installer || null,
-        clientId:  user.clientId  || null,
+        role:             user.role,
+        name:             user.name,
+        companyId:        company.companyId,
+        companyName:      settings.companyName || company.companyName,
+        installer:        user.installer || null,
+        clientId:         user.clientId  || null,
         clientCompanyName: user.companyName || null,
+        installerCompanyName: (user.role==='installer' ? user.companyName||'' : null),
       };
       saveTokens();
       return res.json({
@@ -470,6 +471,7 @@ app.post('/api/:companyId/users', requireCompanyAuth('admin'), (req, res) => {
   if (role === 'installer') {
     newUser.installer = name;
     newUser.countries = countries || [];
+    newUser.companyName = companyName || '';
   }
   users[username] = newUser;
   saveCompanyUsers(cid, users);
@@ -584,7 +586,8 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
 
   // Installer assignment — check how many installers in this country
   const users     = getCompanyUsers(cid);
-  const installers = Object.values(users).filter(u=>u.role==='installer' && (u.countries||[]).includes(country));
+  const countryLower = (country||'').toLowerCase().trim();
+  const installers = Object.values(users).filter(u=>u.role==='installer' && (u.countries||[]).some(co=>co.toLowerCase().trim()===countryLower));
 
   let assignedTechnician = technician || '';
   let needsAssignment    = false;
