@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>WebAncher HQ</title>
+<link rel="stylesheet" href="/shared.css"/>
+<script src="/auth.js"></script>
+<style>
+  .hq-header{background:#050b14;border-bottom:1px solid #1e293b;padding:0 24px;height:56px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+  .hq-logo{display:flex;align-items:center;gap:10px}
+  .hq-logo-icon{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#38bdf8,#6366f1);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff}
+  .hq-logo-text{font-weight:700;font-size:15px;color:#f1f5f9}
+  .hq-logo-sub{font-size:11px;color:#64748b}
+  .hq-spacer{flex:1}
+  .hq-body{max-width:1100px;margin:0 auto;padding:28px 24px}
+  .hq-tabs{display:flex;gap:4px;margin-bottom:28px;background:#0a1220;border:1px solid #1e293b;border-radius:10px;padding:4px;width:fit-content}
+  .hq-tab{padding:7px 18px;border-radius:7px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;transition:all .15s}
+  .hq-tab.active{background:#1e293b;color:#f1f5f9}
+  .section-title{font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:6px}
+  .section-sub{font-size:13px;color:#64748b;margin-bottom:20px}
+  .company-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .company-card{background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:20px;cursor:pointer;transition:all .15s}
+  .company-card:hover{border-color:#38bdf8;transform:translateY(-1px)}
+  .company-card-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .company-avatar{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#1e40af,#0ea5e9);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0}
+  .company-name{font-weight:700;font-size:15px;color:#f1f5f9}
+  .company-admin{font-size:12px;color:#64748b}
+  .company-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+  .stat-box{background:#050b14;border-radius:8px;padding:8px 10px;text-align:center}
+  .stat-num{font-size:18px;font-weight:700;color:#38bdf8}
+  .stat-label{font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.05em}
+  .company-card-footer{display:flex;gap:8px}
+  .pending-card{background:#0a1220;border:1px solid rgba(251,191,36,.3);border-radius:14px;padding:20px;margin-bottom:12px}
+  .pending-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .pending-title{font-weight:700;font-size:14px;color:#fbbf24}
+  .pending-detail{font-size:12px;color:#64748b;margin-bottom:4px}
+  .pending-actions{display:flex;gap:8px;margin-top:12px}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .new-company-form{background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px;margin-bottom:24px}
+
+  /* Company detail view */
+  .detail-header{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+  .back-btn{background:#1e293b;border:none;border-radius:8px;padding:7px 14px;color:#94a3b8;font-size:13px;cursor:pointer}
+  .back-btn:hover{color:#f1f5f9}
+  .detail-tabs{display:flex;gap:4px;margin-bottom:24px;background:#0a1220;border:1px solid #1e293b;border-radius:10px;padding:4px;width:fit-content}
+  .detail-tab{padding:6px 16px;border-radius:7px;font-size:13px;font-weight:600;color:#64748b;cursor:pointer;transition:all .15s}
+  .detail-tab.active{background:#1e293b;color:#f1f5f9}
+  .users-table{width:100%;border-collapse:collapse}
+  .users-table th{text-align:left;font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.06em;padding:8px 12px;border-bottom:1px solid #1e293b}
+  .users-table td{padding:10px 12px;border-bottom:1px solid #0d1829;font-size:13px;color:#94a3b8}
+  .users-table tr:hover td{background:#0d1829}
+  .role-badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600}
+  .role-admin{background:#1e1130;color:#a78bfa}
+  .role-client{background:#0c2a3a;color:#38bdf8}
+  .role-installer{background:#0a2a1e;color:#34d399}
+  .job-row{background:#0a1220;border:1px solid #1e293b;border-radius:10px;padding:14px 16px;margin-bottom:8px;cursor:pointer}
+  .job-row:hover{border-color:#334155}
+  .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+  .summary-card{background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:16px;text-align:center}
+  .summary-num{font-size:28px;font-weight:700;color:#38bdf8}
+  .summary-label{font-size:12px;color:#64748b;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="hq-header">
+  <div class="hq-logo">
+    <div class="hq-logo-icon">W</div>
+    <div>
+      <div class="hq-logo-text">WebAncher HQ</div>
+      <div class="hq-logo-sub">Platform Control</div>
+    </div>
+  </div>
+  <div class="hq-spacer"></div>
+  <button class="btn-secondary" style="font-size:12px;padding:6px 14px" onclick="tfLogout()">Sign Out</button>
+</div>
+
+<div class="hq-body">
+  <!-- Main dashboard -->
+  <div id="main-view">
+    <div class="hq-tabs">
+      <div class="hq-tab active" onclick="showTab('companies',this)">Companies</div>
+      <div class="hq-tab" onclick="showTab('signups',this)">Pending Signups <span id="signup-count" style="background:#fbbf24;color:#000;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px"></span></div>
+      <div class="hq-tab" onclick="showTab('new-company',this)">+ New Company</div>
+      <div class="hq-tab" onclick="showTab('hq-settings',this)">⚙ HQ Settings</div>
+    </div>
+
+    <!-- Companies tab -->
+    <div id="tab-companies">
+      <div class="section-title">All Companies</div>
+      <div class="section-sub">Click any company to view details and manage.</div>
+      <div class="company-grid" id="company-grid"></div>
+    </div>
+
+    <!-- HQ Settings tab -->
+    <div id="tab-hq-settings" style="display:none">
+      <div class="section-title">WebAncher HQ Settings</div>
+      <div class="section-sub">Global configuration for the entire platform.</div>
+      <div style="max-width:500px;background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:8px">📧 Email Configuration</div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:16px">Set a single Resend API key here. It will be used for all email notifications across every company on the platform.</div>
+        <div class="form-field" style="margin-bottom:16px">
+          <label class="form-label">Resend API Key</label>
+          <input class="form-input" id="hq-resend-key" type="password" placeholder="re_xxxxxxxxxx"/>
+        </div>
+        <button class="btn-primary" onclick="saveHQSettings()">Save</button>
+        <div id="hq-settings-msg" style="font-size:13px;margin-top:10px"></div>
+      </div>
+
+      <div style="max-width:500px;background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px;margin-top:20px">
+        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:8px">🔐 HQ Login Credentials</div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:16px">Change the WebAncher HQ username and password.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <div class="form-field">
+            <label class="form-label">New Username</label>
+            <input class="form-input" id="hq-new-username" placeholder="Leave blank to keep"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">New Password</label>
+            <input class="form-input" id="hq-new-password" type="password" placeholder="Leave blank to keep"/>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="saveHQCredentials()">Update HQ Credentials</button>
+        <div id="hq-creds-msg" style="font-size:13px;margin-top:10px"></div>
+      </div>
+    </div>
+
+    <!-- Signups tab -->
+    <div id="tab-signups" style="display:none">
+      <div class="section-title">Pending Signups</div>
+      <div class="section-sub">Review and approve or reject company signup requests.</div>
+      <div id="signups-list"></div>
+    </div>
+
+    <!-- New company tab -->
+    <div id="tab-new-company" style="display:none">
+      <div class="section-title">Create New Company</div>
+      <div class="section-sub">Manually create a company account.</div>
+      <div class="new-company-form">
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Company Name *</label>
+            <input class="form-input" id="nc-company" placeholder="e.g. Acme Fleet"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Admin Name *</label>
+            <input class="form-input" id="nc-name" placeholder="e.g. John Smith"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">Admin Username *</label>
+            <input class="form-input" id="nc-username" placeholder="e.g. acme_admin"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Admin Password *</label>
+            <input class="form-input" id="nc-password" type="password" placeholder="Set a password"/>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="createCompany()">Create Company</button>
+        <div id="nc-msg" style="margin-top:10px;font-size:13px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Company detail view -->
+  <div id="detail-view" style="display:none">
+    <div class="detail-header">
+      <button class="back-btn" onclick="showMain()">← All Companies</button>
+      <div>
+        <div style="font-size:20px;font-weight:700;color:#f1f5f9" id="detail-company-name"></div>
+        <div style="font-size:13px;color:#64748b" id="detail-company-id"></div>
+      </div>
+    </div>
+    <div class="detail-tabs">
+      <div class="detail-tab active" onclick="showDetailTab('summary',this)">Summary</div>
+      <div class="detail-tab" onclick="showDetailTab('jobs',this)">Jobs</div>
+      <div class="detail-tab" onclick="showDetailTab('users',this)">Users & Credentials</div>
+      <div class="detail-tab" onclick="showDetailTab('settings',this)">Settings</div>
+    </div>
+    <div id="detail-summary"></div>
+    <div id="detail-jobs" style="display:none"></div>
+    <div id="detail-users" style="display:none"></div>
+    <div id="detail-settings" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+let companies = [], signups = [], currentCompany = null;
+const STATUS_META = {
+  'Pending Acceptance':{color:'#fca5a5',bg:'#2a0f0f'},
+  'In Progress':{color:'#4ade80',bg:'#0a2a1e'},
+  'Waiting for Docs':{color:'#fb923c',bg:'#2d1a0a'},
+  'Awaiting System Check':{color:'#a78bfa',bg:'#1e1130'},
+  'Awaiting Document Check':{color:'#38bdf8',bg:'#0c2a3a'},
+  'Completed':{color:'#64748b',bg:'#1e293b'},
+};
+function badge(s){const m=STATUS_META[s]||{color:'#64748b',bg:'#1e293b'};return`<span style="background:${m.bg};color:${m.color};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${s}</span>`;}
+function jobBadge(j){
+  if(j.clientConfirmed) return badge('Completed');
+  if(j.truckUnavailable) return j.clientTruckReply?'<span style="background:#0c2a3a;color:#38bdf8;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">💬 Client Replied</span>':'<span style="background:#2a0f0f;color:#f87171;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🚫 Truck Unavailable</span>';
+  if(j.problemReport?.status==='open') return '<span style="background:#2a0f0f;color:#f87171;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">⚠ Problem Reported</span>';
+  if(j.problemReport?.status==='fixed') return '<span style="background:#451a00;color:#fbbf24;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🔧 Awaiting Admin Review</span>';
+  const rp=j.rescheduleProposal?.status==='pending';
+  if(rp){const lr=j.rescheduleThread?.[j.rescheduleThread.length-1]?.role;const ct=!lr||lr==='installer';return ct?'<span style="background:#1e1130;color:#c084fc;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">↺ Installer→Client</span>':'<span style="background:#451a00;color:#fbbf24;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">↺ Client→Installer</span>';}
+  return badge(j.status);
+}
+
+async function checkAuth() {
+  const auth = getAuth();
+  if (!auth || !auth.token || auth.role !== 'hq') { clearAuth(); window.location.href='/'; return; }
+  await loadAll();
+  startHQSSE();
+}
+
+async function loadAll() {
+  const [cRes, sRes] = await Promise.all([apiFetch('/api/hq/companies'), apiFetch('/api/hq/signups')]);
+  companies = await cRes.json();
+  signups   = await sRes.json();
+  renderCompanies();
+  renderSignups();
+  document.getElementById('signup-count').textContent = signups.length || '';
+  document.getElementById('signup-count').style.display = signups.length ? 'inline' : 'none';
+}
+
+function showTab(tab, el) {
+  if (tab==='hq-settings') loadHQSettings();
+  ['companies','signups','new-company','hq-settings'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===tab?'block':'none';
+  });
+  document.querySelectorAll('.hq-tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function renderCompanies() {
+  const el = document.getElementById('company-grid');
+  if (!companies.length) { el.innerHTML='<div style="color:#475569;font-size:14px">No companies yet.</div>'; return; }
+  el.innerHTML = companies.map(c => `
+    <div class="company-card" onclick="openCompany('${c.companyId}')">
+      <div class="company-card-header">
+        <div class="company-avatar">${(c.companyName||'?')[0].toUpperCase()}</div>
+        <div>
+          <div class="company-name">${c.companyName}</div>
+          <div class="company-admin">Admin: ${c.adminName}</div>
+        </div>
+        <span style="margin-left:auto;font-size:11px;padding:2px 8px;border-radius:6px;background:${c.status==='active'?'#0a2a1e':'#2a0f0f'};color:${c.status==='active'?'#34d399':'#f87171'}">${c.status}</span>
+      </div>
+      <div class="company-stats">
+        <div class="stat-box"><div class="stat-num">${c.activeJobs||0}</div><div class="stat-label">Active</div></div>
+        <div class="stat-box"><div class="stat-num">${c.totalJobs||0}</div><div class="stat-label">Total Jobs</div></div>
+        <div class="stat-box"><div class="stat-num">${c.clientCount||0}/${c.installerCount||0}</div><div class="stat-label">C/I</div></div>
+      </div>
+      <div class="company-card-footer">
+        <button class="btn-primary" style="flex:1;font-size:12px;padding:7px" onclick="event.stopPropagation();openCompany('${c.companyId}')">View Details</button>
+        <button class="btn-danger" style="font-size:12px;padding:7px 12px" onclick="event.stopPropagation();deleteCompany('${c.companyId}','${c.companyName}')">Delete</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderSignups() {
+  const el = document.getElementById('signups-list');
+  if (!signups.length) { el.innerHTML='<div style="color:#475569;font-size:14px;padding:20px 0">No pending signups.</div>'; return; }
+  el.innerHTML = signups.map(s => `
+    <div class="pending-card">
+      <div class="pending-header">
+        <div style="width:36px;height:36px;border-radius:8px;background:#451a00;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fbbf24">${s.companyName[0].toUpperCase()}</div>
+        <div>
+          <div class="pending-title">${s.companyName}</div>
+          <div style="font-size:12px;color:#64748b">Submitted ${new Date(s.requestedAt).toLocaleDateString()}</div>
+        </div>
+      </div>
+      <div class="pending-detail">👤 Admin: <b style="color:#f1f5f9">${s.adminName}</b></div>
+      <div class="pending-detail">🔑 Username: <b style="color:#f1f5f9">${s.username}</b></div>
+      <div class="pending-detail">🔒 Password: <b style="color:#f1f5f9">${s.password}</b></div>
+      ${s.email?`<div class="pending-detail">✉ Email: <b style="color:#f1f5f9">${s.email}</b></div>`:''}
+      <div class="pending-actions">
+        <button class="btn-success" style="flex:1" onclick="approveSignup('${s.username}')">✓ Approve & Activate</button>
+        <button class="btn-danger" style="flex:1" onclick="rejectSignup('${s.username}')">✕ Reject</button>
+      </div>
+    </div>`).join('');
+}
+
+async function approveSignup(username) {
+  const res = await apiFetch('/api/hq/signups/'+username+'/approve', { method:'POST' });
+  const data = await res.json();
+  if (data.ok) { await loadAll();
+  startHQSSE(); alert('Company approved and activated!'); }
+  else alert(data.error);
+}
+async function rejectSignup(username) {
+  if (!confirm('Reject signup from '+username+'?')) return;
+  await apiFetch('/api/hq/signups/'+username+'/reject', { method:'POST' });
+  await loadAll();
+  startHQSSE();
+}
+async function createCompany() {
+  const companyName = document.getElementById('nc-company').value.trim();
+  const adminName   = document.getElementById('nc-name').value.trim();
+  const username    = document.getElementById('nc-username').value.trim().toLowerCase();
+  const password    = document.getElementById('nc-password').value;
+  const msgEl       = document.getElementById('nc-msg');
+  if (!companyName||!adminName||!username||!password) { msgEl.style.color='#f87171'; msgEl.textContent='All fields required.'; return; }
+  const res  = await apiFetch('/api/hq/companies', { method:'POST', body:JSON.stringify({companyName,adminName,username,password}) });
+  const data = await res.json();
+  if (data.ok) {
+    msgEl.style.color='#34d399'; msgEl.textContent='Company created! ID: '+data.companyId;
+    document.getElementById('nc-company').value='';
+    document.getElementById('nc-name').value='';
+    document.getElementById('nc-username').value='';
+    document.getElementById('nc-password').value='';
+    await loadAll();
+  startHQSSE();
+  } else { msgEl.style.color='#f87171'; msgEl.textContent=data.error; }
+}
+async function deleteCompany(cid, name) {
+  if (!confirm('Delete '+name+'? This removes it from the list but keeps data files.')) return;
+  await apiFetch('/api/hq/companies/'+cid, { method:'DELETE' });
+  await loadAll();
+  startHQSSE();
+}
+
+// ── Company detail ────────────────────────────────────────────────────────────
+async function openCompany(cid) {
+  currentCompany = companies.find(c=>c.companyId===cid);
+  document.getElementById('main-view').style.display='none';
+  document.getElementById('detail-view').style.display='block';
+  document.getElementById('detail-company-name').textContent = currentCompany.companyName;
+  document.getElementById('detail-company-id').textContent = 'ID: '+cid;
+  await loadDetailSummary(cid);
+  showDetailTab('summary', document.querySelector('.detail-tab'));
+}
+function showMain() {
+  document.getElementById('main-view').style.display='block';
+  document.getElementById('detail-view').style.display='none';
+  currentCompany = null;
+}
+function showDetailTab(tab, el) {
+  ['summary','jobs','users','settings'].forEach(t=>{ document.getElementById('detail-'+t).style.display=t===tab?'block':'none'; });
+  document.querySelectorAll('.detail-tab').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  const cid = currentCompany.companyId;
+  if (tab==='jobs')     loadDetailJobs(cid);
+  if (tab==='users')    loadDetailUsers(cid);
+  if (tab==='settings') loadDetailSettings(cid);
+}
+async function loadDetailSummary(cid) {
+  const [jRes, uRes] = await Promise.all([apiFetch('/api/hq/companies/'+cid+'/jobs'), apiFetch('/api/hq/companies/'+cid+'/users')]);
+  const jobs  = await jRes.json();
+  const users = await uRes.json();
+  const active    = jobs.filter(j=>j.status!=='Completed').length;
+  const completed = jobs.filter(j=>j.status==='Completed').length;
+  const clients   = Object.values(users).filter(u=>u.role==='client').length;
+  const installers= Object.values(users).filter(u=>u.role==='installer').length;
+  document.getElementById('detail-summary').innerHTML=`
+    <div class="summary-grid">
+      <div class="summary-card"><div class="summary-num">${jobs.length}</div><div class="summary-label">Total Jobs</div></div>
+      <div class="summary-card"><div class="summary-num" style="color:#4ade80">${active}</div><div class="summary-label">Active Jobs</div></div>
+      <div class="summary-card"><div class="summary-num" style="color:#38bdf8">${clients}</div><div class="summary-label">Clients</div></div>
+      <div class="summary-card"><div class="summary-num" style="color:#a78bfa">${installers}</div><div class="summary-label">Installers</div></div>
+    </div>
+    <div style="font-size:14px;font-weight:600;color:#94a3b8;margin-bottom:12px">Recent Jobs</div>
+    ${jobs.slice(-5).reverse().map(j=>`
+      <div class="job-row">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-family:monospace;font-size:11px;color:#475569">${j.id}</span>
+          <span style="font-weight:600;color:#f1f5f9">${j.name||j.location}</span>
+          ${jobBadge(j)}
+          <span style="font-size:12px;color:#64748b;margin-left:auto">👤 ${j.clientName||'—'} · 🔧 ${j.technician||'Unassigned'}</span>
+        </div>
+      </div>`).join('')}`;
+}
+async function loadDetailJobs(cid) {
+  const res  = await apiFetch('/api/hq/companies/'+cid+'/jobs');
+  const jobs = await res.json();
+  document.getElementById('detail-jobs').innerHTML = !jobs.length ? '<div style="color:#475569;padding:20px 0">No jobs yet.</div>' :
+    jobs.map(j=>`
+      <div class="job-row">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+          <span style="font-family:monospace;font-size:11px;color:#475569">${j.id}</span>
+          <span style="font-weight:600;color:#f1f5f9">${j.name||j.location}</span>
+          ${jobBadge(j)}
+        </div>
+        <div style="display:flex;gap:16px;font-size:12px;color:#64748b;flex-wrap:wrap">
+          <span>👤 ${j.clientName||'—'} (${j.clientCompanyName||'—'})</span>
+          <span>🔧 ${j.technician||'Unassigned'}</span>
+          <span>📅 ${j.date}${j.time?' '+j.time:''}</span>
+          <span>🌍 ${j.country}</span>
+          <span>🔩 ${j.serviceType||'Installation'}</span>
+        </div>
+      </div>`).join('');
+}
+async function loadDetailUsers(cid) {
+  const res   = await apiFetch('/api/hq/companies/'+cid+'/users');
+  const users = await res.json();
+  // Sort by role: admin first, then clients, then installers
+  const order = {admin:0, client:1, installer:2};
+  const rows  = Object.values(users).sort((a,b)=>(order[a.role]||9)-(order[b.role]||9));
+  
+  function userDetail(u) {
+    if (u.role==='client') return u.companyName||'—';
+    if (u.role==='installer') return (u.countries||[]).join(', ')||'—';
+    return 'Admin';
+  }
+
+  const adminUsers = rows.filter(u=>u.role==='admin');
+  document.getElementById('detail-users').innerHTML = `
+    ${adminUsers.length ? `<div style="margin-bottom:16px;padding:16px;background:#1e1130;border:1px solid rgba(167,139,250,.2);border-radius:10px">
+      <div style="font-size:13px;font-weight:700;color:#a78bfa;margin-bottom:10px">Admin Accounts</div>
+      ${adminUsers.map(u=>`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="color:#f1f5f9;font-weight:600;min-width:100px">${u.name}</span>
+        <span style="font-family:monospace;color:#e2e8f0">@${u.username}</span>
+        <span style="font-family:monospace;color:#fbbf24;background:#1e293b;padding:2px 8px;border-radius:4px">${u.password}</span>
+        <button style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:4px 10px;color:#94a3b8;font-size:11px;cursor:pointer;margin-left:auto" onclick="openEditAdminCreds('${cid}','${u.username}','${u.name}')">✏️ Edit</button>
+      </div>`).join('')}
+    </div>` : ''}
+    <table class="users-table">
+      <thead><tr><th>Name</th><th>Username</th><th>Password</th><th>Role</th><th>Details</th><th>Email</th><th>Created</th></tr></thead>
+      <tbody>
+        ${rows.filter(u=>u.role!=='admin').map(u=>`<tr>
+          <td style="color:#f1f5f9;font-weight:600">${u.name}</td>
+          <td style="font-family:monospace;color:#e2e8f0">${u.username}</td>
+          <td style="font-family:monospace;color:#fbbf24">${u.password}</td>
+          <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+          <td style="color:#94a3b8">${userDetail(u)}</td>
+          <td style="color:#64748b;font-size:12px">${u.email||'—'}</td>
+          <td style="color:#475569;font-size:12px">${u.createdAt||'—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+async function loadDetailSettings(cid) {
+  const res = await apiFetch('/api/hq/companies/'+cid+'/settings');
+  const s   = await res.json();
+  document.getElementById('detail-settings').innerHTML=`
+    <div style="background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:20px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        ${[['Company Name',s.companyName],['Admin Name',s.adminName],['Status',s.status],['Created',s.createdAt],
+           ['Admin Email',s.emails?.adminEmail||'—'],['Client Email',s.emails?.clientEmail||'—'],
+           ['Installer Email',s.emails?.installerEmail||'—'],['Resend Key',s.emails?.resendApiKey?'••••••••':'Not set']]
+          .map(([k,v])=>`<div><div style="font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${k}</div><div style="font-size:14px;color:#f1f5f9">${v||'—'}</div></div>`).join('')}
+      </div>
+    </div>`;
+}
+
+
+async function toggleJobDetail(el, jobId, cid) {
+  const expand = el.querySelector('.job-detail-expand');
+  if (!expand) return;
+  if (expand.style.display === 'block') {
+    expand.style.display = 'none';
+    el.querySelector('span[style*="▼"]').textContent = '▼ Details';
+    return;
+  }
+  el.querySelector('span[style*="▼"]').textContent = '▲ Hide';
+  expand.style.display = 'block';
+  expand.innerHTML = '<div style="color:#475569;font-size:12px">Loading…</div>';
+  const res = await apiFetch('/api/hq/companies/'+cid+'/jobs');
+  const jobs = await res.json();
+  const j = jobs.find(x=>x.id===jobId);
+  if (!j) { expand.innerHTML = '<div style="color:#f87171">Job not found</div>'; return; }
+  
+  const prog = (cl) => {
+    if (!cl) return {done:0,total:0};
+    const all = cl.flatMap(s=>s.steps.filter(x=>!x.skipped));
+    return {done:all.filter(x=>x.done).length, total:all.length};
+  };
+  const p = prog(j.checklist);
+  const pct = p.total ? Math.round(p.done/p.total*100) : 0;
+  
+  expand.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-bottom:12px">
+      ${[['Service',j.serviceType||'Installation'],['Unit',j.unitType||'—'],['Truck',j.truck||'TBC'],['Started',j.startDate||'—']]
+        .map(([k,v])=>`<div><div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em">${k}</div><div style="font-size:13px;color:#e2e8f0">${v}</div></div>`).join('')}
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div style="flex:1;height:6px;background:#1e293b;border-radius:3px">
+        <div style="height:6px;width:${pct}%;background:${pct===100?'#34d399':'#38bdf8'};border-radius:3px"></div>
+      </div>
+      <span style="font-size:12px;color:#64748b">${p.done}/${p.total} steps</span>
+    </div>
+    ${j.notes?.length ? `<div style="font-size:12px;color:#64748b;margin-top:8px">${j.notes.map(n=>`<div style="padding:4px 0;border-bottom:1px solid #1e293b">📝 ${n.text} <span style="color:#334155">· ${n.at}</span></div>`).join('')}</div>` : ''}
+    ${j.truckUnavailable ? `<div style="font-size:12px;color:#f87171;margin-top:8px">✕ Truck Unavailable: ${j.truckUnavailableReason||''}</div>` : ''}
+  `;
+}
+
+
+async function loadHQSettings() {
+  const res  = await apiFetch('/api/hq/settings');
+  const data = await res.json();
+  const inp  = document.getElementById('hq-resend-key');
+  if (inp) inp.value = data.resendApiKey || '';
+}
+async function saveHQSettings() {
+  const key  = document.getElementById('hq-resend-key')?.value.trim();
+  const res  = await apiFetch('/api/hq/settings', { method:'PUT', body:JSON.stringify({ resendApiKey:key }) });
+  const data = await res.json();
+  const msg  = document.getElementById('hq-settings-msg');
+  if (data.ok) { msg.style.color='#34d399'; msg.textContent='Saved!'; setTimeout(()=>msg.textContent='',2000); }
+  else { msg.style.color='#f87171'; msg.textContent=data.error; }
+}
+
+
+let _editAdminCid = '', _editAdminUsername = '';
+function openEditAdminCreds(cid, username, name) {
+  _editAdminCid = cid; _editAdminUsername = username;
+  document.getElementById('eac-name').textContent = name + ' (@' + username + ')';
+  document.getElementById('eac-username').value = '';
+  document.getElementById('eac-password').value = '';
+  document.getElementById('eac-msg').textContent = '';
+  document.getElementById('edit-admin-modal').classList.add('open');
+}
+function closeEditAdminCreds() { document.getElementById('edit-admin-modal').classList.remove('open'); }
+async function saveAdminCreds() {
+  const newUsername = document.getElementById('eac-username').value.trim();
+  const newPassword = document.getElementById('eac-password').value;
+  const msgEl = document.getElementById('eac-msg');
+  if (!newUsername && !newPassword) { msgEl.textContent='Enter a new username or password.'; return; }
+  const body = {};
+  if (newPassword) body.password = newPassword;
+  if (newUsername) body.newUsername = newUsername;
+  const res  = await apiFetch('/api/hq/companies/'+_editAdminCid+'/users/'+_editAdminUsername+'/credentials', { method:'POST', body:JSON.stringify(body) });
+  const data = await res.json();
+  if (data.ok) { closeEditAdminCreds(); loadDetailUsers(_editAdminCid); }
+  else { msgEl.textContent = data.error||'Error'; }
+}
+async function saveHQCredentials() {
+  const newUsername = document.getElementById('hq-new-username')?.value.trim();
+  const newPassword = document.getElementById('hq-new-password')?.value;
+  const msgEl = document.getElementById('hq-creds-msg');
+  if (!newUsername && !newPassword) { msgEl.style.color='#f87171'; msgEl.textContent='Enter a new username or password.'; return; }
+  const res  = await apiFetch('/api/hq/credentials', { method:'POST', body:JSON.stringify({ newUsername, newPassword }) });
+  const data = await res.json();
+  if (data.ok) {
+    msgEl.style.color='#34d399'; msgEl.textContent='Updated! Please sign in again.';
+    setTimeout(() => { clearAuth(); window.location.href='/'; }, 1500);
+  } else { msgEl.style.color='#f87171'; msgEl.textContent=data.error||'Error'; }
+}
+
+function startHQSSE(){
+  // HQ listens to all companies via polling since it's cross-company
+  setInterval(async()=>{
+    if(currentCompany){
+      const res=await apiFetch('/api/hq/companies/'+currentCompany.companyId+'/jobs');
+      // Just refresh if viewing a company detail
+      const tab=document.querySelector('.detail-tab.active')?.dataset?.tab;
+      if(tab==='summary') loadDetailSummary(currentCompany.companyId);
+      if(tab==='jobs')    loadDetailJobs(currentCompany.companyId);
+    }
+  }, 5000);
+}
+checkAuth();
+</script>
+<div style="position:fixed;bottom:0;left:0;right:0;height:26px;background:#050b14;border-top:1px solid #0d1829;display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:none">
+  <span style="font-size:11px;color:#1e293b;letter-spacing:.08em;font-weight:600">POWERED BY</span>
+  <span style="font-size:11px;color:#334155;font-weight:700;margin-left:6px;letter-spacing:.04em">WEBANCHOR</span>
+</div>
+<div style="height:26px"></div><!-- footer spacer -->
+<!-- Edit admin credentials modal -->
+<div id="edit-admin-modal" class="modal-overlay" onclick="if(event.target===this)closeEditAdminCreds()">
+  <div class="modal fade-in" style="max-width:420px">
+    <div class="modal-title">Edit Admin Credentials</div>
+    <div style="font-size:13px;color:#64748b;margin-bottom:16px">Editing: <span id="eac-name" style="color:#f1f5f9"></span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="form-field">
+        <label class="form-label">New Username</label>
+        <input class="form-input" id="eac-username" placeholder="Leave blank to keep"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">New Password</label>
+        <input class="form-input" id="eac-password" type="password" placeholder="Leave blank to keep"/>
+      </div>
+    </div>
+    <div id="eac-msg" style="font-size:13px;color:#f87171;margin-bottom:12px"></div>
+    <div class="modal-btns">
+      <button class="btn-secondary" style="flex:1" onclick="closeEditAdminCreds()">Cancel</button>
+      <button class="btn-primary" style="flex:2" onclick="saveAdminCreds()">Save</button>
+    </div>
+  </div>
+</div>
+
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "companyId": "trifusion",
+  "companyName": "Trifusion",
+  "adminName": "Zander",
+  "status": "active",
+  "createdAt": "2025-01-01",
+  "branding": {
+    "logoUrl": null,
+    "primaryColor": null
+  },
+  "emails": {
+    "adminEmail": "",
+    "clientEmail": "",
+    "installerEmail": "",
+    "resendApiKey": ""
+  },
+  "jobCounter": 0
+}

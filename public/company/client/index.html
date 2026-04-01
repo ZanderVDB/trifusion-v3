@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Trifusion — Korridor Portal</title>
+<link rel="stylesheet" href="/shared.css"/>
+<script src="/auth.js"></script>
+<style>
+  .job-card{background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:16px 18px;cursor:pointer;transition:all .15s;margin-bottom:8px}
+  .job-card:hover{background:#0d1829;transform:translateY(-1px)}
+  .job-card-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .job-id{font-family:'DM Mono',monospace;font-size:12px;color:#64748b}
+  .job-name{font-weight:700;font-size:14px;color:#f1f5f9}
+  .job-meta{display:flex;gap:14px;font-size:12px;color:#64748b;flex-wrap:wrap}
+  .proposal-banner{background:#1e1130;border:1px solid rgba(167,139,250,.3);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+  .proposal-title{font-weight:700;font-size:13px;color:#a78bfa;margin-bottom:6px}
+  .proposal-body{font-size:13px;color:#c4b5fd;margin-bottom:12px}
+  .proposal-btns{display:flex;gap:8px}
+  .status-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#0c1829;border-radius:10px;margin-bottom:16px}
+
+  .time-picker-wrap{display:flex;gap:6px;align-items:center}
+  .time-sel{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:9px 8px;color:#e2e8f0;font-size:13px;font-family:inherit;cursor:pointer;text-align:center}
+  .time-sel:focus{border-color:#38bdf8;outline:none}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-logo">
+    <div class="logo-icon" id="topbar-logo-letter">T</div>
+    <div>
+      <div class="logo-text" id="topbar-company">—</div>
+      <div class="logo-sub" id="topbar-sub">(Client Portal) —</div>
+    </div>
+  </div>
+  <div style="position:absolute;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none">
+    <div style="font-size:11px;color:#334155;font-weight:600;letter-spacing:.06em;text-transform:uppercase" id="topbar-org">—</div>
+  </div>
+  <div class="topbar-spacer"></div>
+  <div class="topbar-user">Logged in as <span id="user-name">—</span></div>
+  <button class="btn-logout" onclick="tfLogout()">Sign Out</button>
+</div>
+
+<div class="page" id="dashboard" style="display:none">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 style="font-size:20px;font-weight:700;color:#f1f5f9">My Service Requests</h1>
+      <p style="font-size:13px;color:#64748b;margin-top:3px">Track all your service requests</p>
+    </div>
+    <button class="btn-primary" onclick="showNewForm()">+ Request Service</button>
+  </div>
+
+  <div id="proposal-alerts"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="setTab('active',this)">Active<span class="tab-count" id="tc-active">0</span></button>
+    <button class="tab-btn" onclick="setTab('completed',this)">Completed<span class="tab-count" id="tc-completed">0</span></button>
+    <button class="tab-btn" onclick="setTab('all',this)">All<span class="tab-count" id="tc-all">0</span></button>
+  </div>
+  <div id="cl-all-filters" style="display:none;margin-bottom:12px">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input id="cl-search" type="text" placeholder="🔍 Search jobs…" class="form-input" style="flex:1;min-width:160px;font-size:13px" oninput="renderJobList()"/>
+      <select id="cl-filter-status" class="form-input" style="width:160px;font-size:13px" onchange="renderJobList()">
+        <option value="">All Statuses</option>
+        <option>Pending Acceptance</option>
+        <option>In Progress</option>
+        <option>Awaiting System Check</option>
+        <option>Waiting for Docs</option>
+        <option>Awaiting Document Check</option>
+        <option>Completed</option>
+      </select>
+    </div>
+  </div>
+  <div id="job-list"></div>
+</div>
+
+<div class="page" id="detail-view" style="display:none">
+  <button class="btn-secondary" style="margin-bottom:16px" onclick="showDashboard()">← Back</button>
+  <div id="detail-content"></div>
+</div>
+
+<!-- NEW SERVICE MODAL -->
+<div class="modal-overlay" id="new-modal">
+  <div class="modal fade-in">
+    <div class="modal-title">Request New Service Request</div>
+    <div class="form-grid">
+      <div class="form-field" style="grid-column:1/-1">
+        <label class="form-label">Location *</label>
+        <input class="form-input" id="f-location" placeholder="e.g. Cape Town Depot"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Vehicle / Truck No.</label>
+        <input class="form-input" id="f-truck" placeholder="Can be added later"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Country <span style="color:#f87171">*</span></label>
+        <select class="form-input" id="f-country" onchange="updateInstallerNote()">
+          <option value="">Loading…</option>
+        </select>
+        <input class="form-input" id="f-country-other" placeholder="Type country name…" style="margin-top:6px;display:none" oninput="updateInstallerNote()"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Service Date *</label>
+        <input class="form-input" id="f-date" type="date"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Service Time <span style="color:#f87171">*</span></label>
+        <div class="time-picker-wrap">
+          <select class="time-sel form-input" id="f-time-h" style="flex:1"><option value="">HH</option>
+<option value="00">00</option>
+<option value="01">01</option>
+<option value="02">02</option>
+<option value="03">03</option>
+<option value="04">04</option>
+<option value="05">05</option>
+<option value="06">06</option>
+<option value="07">07</option>
+<option value="08">08</option>
+<option value="09">09</option>
+<option value="10">10</option>
+<option value="11">11</option>
+<option value="12">12</option>
+<option value="13">13</option>
+<option value="14">14</option>
+<option value="15">15</option>
+<option value="16">16</option>
+<option value="17">17</option>
+<option value="18">18</option>
+<option value="19">19</option>
+<option value="20">20</option>
+<option value="21">21</option>
+<option value="22">22</option>
+<option value="23">23</option></select>
+          <span style="color:#64748b;font-weight:700">:</span>
+          <select class="time-sel form-input" id="f-time-m" style="flex:1"><option value="00">00</option>
+<option value="05">05</option>
+<option value="10">10</option>
+<option value="15">15</option>
+<option value="20">20</option>
+<option value="25">25</option>
+<option value="30">30</option>
+<option value="35">35</option>
+<option value="40">40</option>
+<option value="45">45</option>
+<option value="50">50</option>
+<option value="55">55</option></select>
+        </div>
+      </div>
+      <div class="form-field" style="grid-column:1/-1">
+        <label class="form-label">Service Type <span style="color:#f87171">*</span></label>
+        <select class="form-input" id="f-service" onchange="updateServiceForm()">
+          <option value="Installation">Installation</option>
+          <option value="Inspection">Inspection</option>
+          <option value="Remove and Install">Remove and Install</option>
+          <option value="Decommissioning">Decommissioning</option>
+        </select>
+      </div>
+      <div class="form-field" style="grid-column:1/-1" id="f-unit-wrap">
+        <label class="form-label">Unit Type</label>
+        <select class="form-input" id="f-unit">
+          <option>Basic</option>
+          <option>Advanced</option>
+        </select>
+      </div>
+    </div>
+    <div id="installer-note" style="margin-top:10px;padding:10px 12px;background:#0c1a2a;border-radius:8px;font-size:12px;color:#64748b"></div>
+    <div class="modal-btns">
+      <button class="btn-secondary" style="flex:1" onclick="closeNewForm()">Cancel</button>
+      <button class="btn-primary" style="flex:2" id="submit-btn" onclick="submitRequest()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const _pathParts = window.location.pathname.split('/').filter(Boolean);
+const COMPANY_ID = _pathParts[0] || '';
+function capi(path) { return '/api/' + COMPANY_ID + path; }
+
+let _countryInstallers = {}; // loaded dynamically from users
+
+function jobUrgencyStyle(job){
+  if(job.status==='Completed') return '';
+  if(!job.date || !job.time) return '';
+  const scheduled = new Date(job.date + 'T' + job.time);
+  const now = new Date();
+  const diffMins = (scheduled - now) / 60000;
+  if(diffMins < 0 && diffMins > -120) return 'border-color:rgba(251,146,60,.7);box-shadow:0 0 0 1px rgba(251,146,60,.3);';
+  if(diffMins >= 0 && diffMins <= 60) return 'border-color:rgba(251,191,36,.8);box-shadow:0 0 0 1px rgba(251,191,36,.3);';
+  if(diffMins > 60 && diffMins <= 180) return 'border-color:rgba(56,189,248,.5);box-shadow:0 0 0 1px rgba(56,189,248,.2);';
+  return '';
+}
+let jobs = [], currentJobId = null, currentTab = 'active';
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+function fileUrl(url) {
+  if (!url) return '#';
+  // Append token to /r2/ URLs so they open in new tabs without auth error
+  if (url.startsWith('/r2/')) {
+    const token = getAuth()?.token || '';
+    return url + '?token=' + token;
+  }
+  return url;
+}
+
+function checkInstallationPopup(job) {
+  // No longer shows a blocking popup — handled inline in job detail and card
+  // Just ensure the job list re-renders to show the attention banner
+}
+
+// Popup replaced with inline confirmation in job detail
+async function checkAuth() {
+  const auth = getAuth();
+  if (!auth || !auth.token || auth.role !== 'client') {
+    clearAuth();
+    window.location.href = '/';
+    return;
+  }
+  document.getElementById('user-name').textContent = auth.name || 'David';
+  // Update portal subtitle with actual client name
+  // Set topbar
+  const _clientComp = auth.clientCompanyName || auth.companyName || '';
+  const _clientName = auth.name || '';
+  const _adminComp  = auth.companyName || '';
+  const compEl = document.getElementById('topbar-company');
+  const subEl  = document.getElementById('topbar-sub');
+  const orgEl  = document.getElementById('topbar-org');
+  const llEl   = document.getElementById('topbar-logo-letter');
+  if (compEl) compEl.textContent = _clientComp || _adminComp;
+  if (subEl)  subEl.textContent  = '(Client Portal) ' + _clientName;
+  if (orgEl)  orgEl.textContent  = 'A ' + _adminComp + ' Service';
+  if (llEl)   llEl.textContent   = (_clientComp||_adminComp||'C')[0].toUpperCase();
+  loadJobs();
+  startSSE();
+}
+
+
+// ── SSE ───────────────────────────────────────────────────────────────────────
+function startSSE() {
+  const token = getAuth()?.token || ''; const es = new EventSource(capi('/events')+'?token='+token);
+  es.onmessage = e => { try { const d=JSON.parse(e.data); if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message') scheduleRefresh(); } catch(ex){} };
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+async function loadJobs() {
+  try {
+    const res = await apiFetch(capi('/jobs'));
+    if (res.status === 401) { clearAuth(); window.location.href='/'; return; }
+    const data = await res.json();
+    jobs = Array.isArray(data) ? data : [];
+  } catch(e) { console.error('loadJobs error',e); return; }
+  // Check popup for all jobs
+  jobs.forEach(j => checkInstallationPopup(j));
+  // Always update tab counts
+  document.getElementById('tc-active').textContent = jobs.filter(j=>j.status!=='Completed').length;
+  document.getElementById('tc-completed').textContent = jobs.filter(j=>j.status==='Completed').length;
+  const tcAll = document.getElementById('tc-all'); if(tcAll) tcAll.textContent = jobs.length;
+  if (currentJobId) {
+    // Stay on detail view — just refresh in place
+    renderDetail(currentJobId);
+  } else {
+    renderDashboard();
+  }
+}
+
+// ── Status helpers ────────────────────────────────────────────────────────────
+const STATUS_META = {
+  'Pending Acceptance':      {color:'#fca5a5', bg:'#2a0f0f', dot:'#fca5a5'},
+  'In Progress':             {color:'#4ade80', bg:'#0a2a1e', dot:'#4ade80'},
+  'Awaiting System Check':   {color:'#38bdf8', bg:'#0c2a3a', dot:'#38bdf8'},
+  'Waiting for Docs':        {color:'#fb923c', bg:'#2d1a0a', dot:'#fb923c'},
+  'Awaiting Document Check': {color:'#a78bfa', bg:'#1e1130', dot:'#a78bfa'},
+  'Completed':               {color:'#34d399', bg:'#0a2a1e', dot:'#34d399'},
+  'Truck Unavailable':       {color:'#f87171', bg:'#2a0f0f', dot:'#f87171'},
+  'Not Started':             {color:'#64748b', bg:'#1e293b', dot:'#64748b'},
+};
+function badgeHTML(s) {
+  const m = STATUS_META[s] || STATUS_META['Not Started'];
+  return `<span class="badge" style="background:${m.bg};color:${m.color};border:1px solid ${m.color}30"><span class="badge-dot" style="background:${m.dot}"></span>${s}</span>`;
+}
+function getJobBadge(j) {
+  if (j.clientConfirmed) return badgeHTML('Completed');
+  if (j.truckUnavailable) {
+    return j.clientTruckReply
+      ? '<span class="badge" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc30">↺ Waiting for Installer Response</span>'
+      : '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable</span>';
+  }
+  if (j.problemReport?.status==='open') return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">⚠ Problem Reported</span>';
+  if (j.problemReport?.status==='fixed') return '<span class="badge" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">🔧 Awaiting Admin Review</span>';
+  const rp = j.rescheduleProposal?.status === 'pending';
+  if (rp) {
+    const lastRole = j.rescheduleThread?.[j.rescheduleThread.length-1]?.role;
+    const myTurn = !lastRole || lastRole === 'installer';
+    return myTurn
+      ? '<span class="badge pulse" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">⏰ Confirm New Time</span>'
+      : '<span class="badge" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc30">↺ Waiting for Installer</span>';
+  }
+  return badgeHTML(j.status);
+}
+
+
+// Client-friendly status labels
+
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function setTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  const filt = document.getElementById('cl-all-filters');
+  if (filt) filt.style.display = tab==='all' ? 'block' : 'none';
+  renderJobList();
+}
+
+function renderDashboard() {
+  currentJobId = null;
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('detail-view').style.display = 'none';
+
+  document.getElementById('proposal-alerts').innerHTML = '';
+  document.getElementById('tc-active').textContent = jobs.filter(j=>j.status!=='Completed').length;
+  document.getElementById('tc-completed').textContent = jobs.filter(j=>j.status==='Completed').length;
+  const tcAll = document.getElementById('tc-all'); if(tcAll) tcAll.textContent = jobs.length;
+  renderJobList();
+}
+
+function renderJobList() {
+  let list = jobs;
+  if (currentTab==='active')    list = jobs.filter(j=>j.status!=='Completed');
+  else if (currentTab==='completed') list = jobs.filter(j=>j.status==='Completed');
+  else if (currentTab==='all') {
+    list = [...jobs];
+    const q  = document.getElementById('cl-search')?.value.toLowerCase()||'';
+    const fs = document.getElementById('cl-filter-status')?.value||'';
+    if (q)  list = list.filter(j=>(j.id+' '+j.location+' '+(j.clientCompanyName||'')+' '+(j.country||'')+' '+(j.truck||'')).toLowerCase().includes(q));
+    if (fs) list = list.filter(j=>j.status===fs);
+  }
+  const el = document.getElementById('job-list');
+  if (!list.length) { el.innerHTML = '<div style="text-align:center;color:#334155;padding:50px 0;font-size:14px">No services in this view</div>'; return; }
+  el.innerHTML = list.map(j => {
+    const prog = progressOf(j.checklist);
+    const pct = prog.total ? Math.round(prog.done/prog.total*100) : 0;
+    return `<div class="job-card" onclick="showDetail('${j.id}')" style="${jobUrgencyStyle(j)}">
+      <div class="job-card-top">
+        <span class="job-id">${j.id}</span>
+        <span class="job-name">${j.name||j.location}</span>
+        ${(()=>{
+          // Only ONE primary badge at a time
+          if(j.clientConfirmed) return '<span class="badge" style="background:#0a2a1e;color:#34d399;border:1px solid #34d399">🎉 Job Fully Complete</span>';
+          if(j.truckUnavailable) return '<span class="badge" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">✕ Truck Unavailable</span>';
+          if(j.problemReport) return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f8717140">⚠ Problem Reported</span>';
+          const installDone=j.checklist?.find(s=>s.id==='service')?.steps.find(s=>s.id==='service_complete')?.done||j.systemCheckPending||j.systemOk;
+          const docsDone=j.checklist?.find(s=>s.id==='documents')?.steps.filter(x=>!x.skipped&&!x.isTextNote).every(x=>x.done);
+          return getJobBadge(j);
+        })()}
+        ${j.jobStatusNote && j.jobStatusNote!=='Rescheduled — new time confirmed' && j.rescheduleProposal?.status==='pending' ? '' : j.jobStatusNote ? `<span style="font-size:11px;color:#64748b;font-style:italic">${j.jobStatusNote}</span>` : ''}
+      </div>
+      <div class="job-meta">
+        <span>📍 ${j.location}</span>
+        <span>📅 ${j.date}${j.time?' '+j.time:''}</span>
+        <span>🌍 ${j.country}</span>
+        <span>🔧 ${j.serviceType||'Installation'}</span>
+        ${j.completionDate?`<span style="color:#34d399">✓ Completed ${j.completionDate}</span>`:''}
+      </div>
+      <div class="progress-wrap" style="margin-top:8px">
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${pct===100?'#34d399':'#38bdf8'}"></div></div>
+        <span class="progress-label">${prog.done}/${prog.total}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function progressOf(cl) {
+  if (!cl) return {done:0,total:0};
+  const all = cl.flatMap(s=>s.steps.filter(x=>!x.skipped));
+  return {done:all.filter(x=>x.done).length, total:all.length};
+}
+
+// ── Detail ────────────────────────────────────────────────────────────────────
+async function showDetail(id) {
+  currentJobId = id;
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('detail-view').style.display = 'block';
+  renderDetail(id);
+}
+
+function showDashboard() {
+  currentJobId = null;
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('detail-view').style.display = 'none';
+}
+
+function renderDetail(id) {
+  const _j = jobs.find(x=>x.id===id);
+  if(_j) setTimeout(()=>checkInstallationPopup(_j), 500);
+  const j = jobs.find(x=>x.id===id);
+  if (!j) return;
+
+  // Build timeline for client
+  const _serviceCheck = j.checklist?.find(s=>s.id==='service');
+  const _serviceDone  = _serviceCheck?.steps.find(s=>s.id==='service_complete')?.done;
+  const _docsDoneAll  = j.checklist?.find(s=>s.id==='documents')?.steps.filter(x=>!x.skipped&&!x.isTextNote).every(x=>x.done);
+  const stages = [
+    { label: 'Request Submitted',   done: true },
+    { label: 'Installer Accepted',  done: !!j.accepted },
+    { label: 'Service In Progress', done: j.checklist?.find(s=>s.id==='pre')?.steps.every(s=>s.done||s.skipped) },
+    { label: 'Service Complete',    done: !!_serviceDone },
+    { label: 'Documents Uploaded',  done: !!_docsDoneAll },
+    { label: 'Completed',           done: j.status === 'Completed' },
+  ];
+  const activeIdx = stages.reduce((a,s,i)=>s.done?i:a, 0);
+
+  const timelineHTML = stages.map((s,i)=>`
+    <div class="tl-item">
+      <div style="display:flex;flex-direction:column;align-items:center">
+        <div class="tl-dot ${s.done?'done':i===activeIdx+1?'active':''}"></div>
+        ${i<stages.length-1?'<div class="tl-line" style="height:24px"></div>':''}
+      </div>
+      <div class="tl-label ${s.done?'done':i===activeIdx+1?'active':''}" style="padding-top:0">${s.label}
+        ${i===activeIdx+1&&!s.done?'<span style="font-size:11px;color:#38bdf8;margin-left:6px">← Current</span>':''}
+      </div>
+    </div>`).join('');
+
+  // Has client already sent a counter? (last thread entry is from client)
+  const clientSentCounter = j.rescheduleProposal?.status==='pending' &&
+    j.rescheduleThread?.length > 0 &&
+    j.rescheduleThread[j.rescheduleThread.length-1]?.role === 'client';
+
+  const proposalHTML = j.rescheduleProposal?.status==='pending' ? (
+    clientSentCounter ? `
+    <div style="background:#0c2a3a;border:2px solid #38bdf8;border-radius:12px;padding:16px 18px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:14px;color:#38bdf8;margin-bottom:4px">↺ Waiting for Installer Response</div>
+      <div style="font-size:13px;color:#94a3b8">Your alternative time has been sent. You cannot take further action until the installer responds.</div>
+    </div>` : `
+    <div class="proposal-banner" style="margin-bottom:16px">
+      <div class="proposal-title">⚠ Reschedule Proposal from ${j.rescheduleProposal.proposedBy}</div>
+      <div class="proposal-body">Cannot make: <b>${j.date}${j.time?' at '+j.time:''}</b><br>
+        Proposed: <b>${j.rescheduleProposal.proposedDate||j.date}${j.rescheduleProposal.proposedTime?' at '+j.rescheduleProposal.proposedTime:''}</b>
+        ${j.rescheduleProposal.note?'<br>Note: '+j.rescheduleProposal.note:''}
+      </div>
+      <div class="proposal-btns">
+        <button class="btn-success btn-sm" onclick="respondReschedule('${j.id}',true)">✓ Accept</button>
+        <button class="btn-secondary btn-sm" onclick="openSuggest('${j.id}')">↺ Suggest Alternative</button>
+        <button class="btn-danger btn-sm" onclick="respondReschedule('${j.id}',false)">✗ Reject</button>
+      </div>
+    </div>`
+  ) : '';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:12px;color:#64748b;margin-bottom:4px">${j.id}</div>
+          <div style="font-weight:700;font-size:20px;color:#f1f5f9;margin-bottom:8px">${j.name||j.location}</div>
+          ${getJobBadge(j)}
+          <div style="font-size:13px;color:#94a3b8;margin-top:8px">${(()=>{
+            const rp=j.rescheduleProposal?.status==='pending';
+            if(rp){const lr=j.rescheduleThread?.[j.rescheduleThread.length-1]?.role;return(!lr||lr==='installer')?'Installer proposed a new time — your response needed':'Your proposed time sent to installer';}
+            return j.status;
+          })()}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px">
+          ${[['Location',j.location],['Country',j.country],['Date',j.date+(j.time?' '+j.time:'')],
+             ['Service',j.serviceType||'Installation'],['Unit',j.serviceType==='Inspection'?'—':j.unitType],['Installer',j.technician]]
+            .map(([k,v])=>`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">${k}</div>
+              <div style="font-size:13px;color:#e2e8f0;font-weight:500">${v}</div></div>`).join('')}
+          <div>
+            <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Truck</div>
+            ${j.truck && j.truckConfirmed
+              ? `<div style="font-size:13px;color:#e2e8f0;font-weight:500">${j.truck}</div>`
+              : `<div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+                  <input id="truck-edit-${j.id}" value="${j.truck||''}" placeholder="Enter truck no."
+                    style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:5px 8px;color:#e2e8f0;font-size:12px;width:110px;outline:none"/>
+                  <button onclick="saveTruck('${j.id}')" style="background:#0c2a3a;border:1px solid #38bdf8;border-radius:6px;padding:5px 10px;color:#38bdf8;font-size:11px;cursor:pointer">✓ Save</button>
+                </div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+    ${renderActivityLog(j)}
+
+    ${proposalHTML}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="card">
+        <div class="card-title">📊 Progress</div>
+        <div class="timeline">${timelineHTML}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">📄 Documents</div>
+        ${renderDocStatus(j)}
+      </div>
+    </div>
+    ${renderActionCard(j)}`;
+}
+
+function renderActionCard(j) {
+  // Truck unavailable - show reply UI
+  if (j.truckUnavailable) return `
+    <div class="card" style="margin-top:14px;border:2px solid #f87171;background:#0a0303">
+      <div style="font-weight:700;font-size:15px;color:#f87171;margin-bottom:6px">🚫 Truck Unavailable</div>
+      <div style="font-size:13px;color:#fca5a5;margin-bottom:4px">"${j.truckUnavailableReason}"</div>
+      <div style="font-size:11px;color:#475569;margin-bottom:12px">Reported by installer</div>
+      ${j.clientTruckReply?`<div style="padding:8px 10px;background:#0c2a3a;border-radius:8px;font-size:13px;color:#bae6fd;margin-bottom:8px">Your reply: "${j.clientTruckReply.message}"</div>`:`
+      <div style="font-size:12px;color:#64748b;margin-bottom:6px">Send a message to the installer:</div>
+      <textarea id="truck-reply-${j.id}" rows="2" placeholder="e.g. Truck is on its way, 15 mins away…"
+        style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:7px;padding:8px;color:#e2e8f0;font-size:12px;font-family:inherit;resize:vertical;margin-bottom:8px"></textarea>
+      <button onclick="clientTruckReply('${j.id}')" style="background:#0c2a3a;border:1px solid #38bdf8;border-radius:8px;padding:9px 18px;color:#38bdf8;font-size:13px;font-weight:600;cursor:pointer;width:100%">
+        Send Message
+      </button>`}
+    </div>`;
+  if (j.clientConfirmed) return '';
+  const installDone = j.checklist?.find(s=>s.id==='service')?.steps.find(s=>s.id==='service_complete')?.done;
+  if (!installDone && !j.systemCheckPending && !j.systemOk) return '';
+  const docsDone = j.checklist?.find(s=>s.id==='documents')?.steps.filter(x=>!x.skipped&&!x.isTextNote).every(x=>x.done);
+
+  // Show problem-reported state
+  if (j.problemReport?.status === 'open') return `
+    <div class="card" style="margin-top:14px;border:2px solid #f87171;background:#0a0505">
+      <div style="font-weight:700;font-size:15px;color:#f87171;margin-bottom:8px">⚠ Problem Reported</div>
+      <div style="font-size:13px;color:#fca5a5;margin-bottom:4px">"${j.problemReport.message}"</div>
+      <div style="font-size:11px;color:#475569">Reported ${j.problemReport.reportedAt} — Waiting for installer to fix</div>
+    </div>`;
+  if (j.problemReport?.status === 'fixed') return `
+    <div class="card" style="margin-top:14px;border:2px solid #fbbf24;background:#0a0802">
+      <div style="font-weight:700;font-size:15px;color:#fbbf24;margin-bottom:8px">🔧 Installer says it's fixed</div>
+      <div style="font-size:13px;color:#fde68a;margin-bottom:4px">Note: "${j.problemReport.fixNote}"</div>
+      <div style="font-size:11px;color:#475569">Waiting for admin to review and re-open the check</div>
+    </div>`;
+
+  // ── STEP 1: Is the system working? ──────────────────────────────────────
+  if (!j.systemOk && !j.systemProblem) return `
+    <div class="card" style="margin-top:14px;border:2px solid #38bdf8;background:#060f1a">
+      <div style="font-size:28px;text-align:center;margin-bottom:10px">🚛</div>
+      <div style="font-weight:700;font-size:16px;color:#38bdf8;text-align:center;margin-bottom:8px">Service Complete</div>
+      <p style="font-size:13px;color:#94a3b8;text-align:center;margin-bottom:18px">
+        The technician has finished. Is the system working correctly on the truck?
+      </p>
+      <button onclick="clientSystemOk('${j.id}')" class="btn-success" style="width:100%;padding:13px;font-size:14px;font-weight:700;border-radius:10px;margin-bottom:12px">
+        ✓ Yes, Working Fine
+      </button>
+      <div style="padding-top:12px;border-top:1px solid #1e293b">
+        <div style="font-size:12px;color:#64748b;margin-bottom:6px">Something not right? Describe the issue:</div>
+        <textarea id="sysprob-text-${j.id}" rows="2" placeholder="e.g. Unit not powering on…"
+          style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;color:#e2e8f0;font-size:13px;font-family:inherit;resize:vertical;margin-bottom:8px"></textarea>
+        <button onclick="clientSystemProblemSubmit('${j.id}')" class="btn-danger" style="width:100%;padding:10px;font-size:13px;font-weight:600">
+          ✗ Report This Problem
+        </button>
+      </div>
+    </div>`;
+
+  // System problem reported
+  if (j.systemProblem && !j.systemOk) return `
+    <div style="background:#2a0f0f;border:2px solid #f87171;border-radius:12px;padding:16px 18px;margin-top:14px">
+      <div style="font-weight:700;font-size:14px;color:#f87171;margin-bottom:6px">⚠ System Issue Reported</div>
+      <div style="font-size:13px;color:#fca5a5;margin-bottom:4px">${j.systemProblem.reason}</div>
+      <div style="font-size:11px;color:#64748b">Admin and installer have been notified.</div>
+    </div>`;
+
+  // System OK but docs not done yet
+  if (j.systemOk && !docsDone) return `
+    <div class="card" style="margin-top:14px;border-color:rgba(74,222,128,.25)">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:24px">✅</span>
+        <div>
+          <div style="font-weight:600;font-size:14px;color:#4ade80">System Confirmed Working</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Waiting for installer to upload all documents…</div>
+        </div>
+      </div>
+    </div>`;
+
+  // ── STEP 2: Check documents ──────────────────────────────────────────────
+  if (j.systemOk && docsDone) return `
+    <div class="card" style="margin-top:14px;border:2px solid #4ade80;background:#020d05">
+      <div style="font-size:28px;text-align:center;margin-bottom:10px">📄</div>
+      <div style="font-weight:700;font-size:16px;color:#4ade80;text-align:center;margin-bottom:8px">All Documents Submitted</div>
+      <p style="font-size:13px;color:#94a3b8;text-align:center;margin-bottom:18px">
+        Please review the documents above, then confirm everything is correct to complete this job.
+      </p>
+      <button onclick="clientConfirmOk('${j.id}')" class="btn-success" style="width:100%;padding:13px;font-size:15px;font-weight:700;border-radius:10px;margin-bottom:10px">
+        ✓ Documents Correct — Complete Job
+      </button>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid #1e293b">
+        <div style="font-size:12px;color:#64748b;margin-bottom:6px">Something wrong with the documents?</div>
+        <textarea id="docprob-text-${j.id}" rows="2" placeholder="e.g. Job card is missing information…"
+          style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:10px;color:#e2e8f0;font-size:13px;font-family:inherit;resize:vertical;margin-bottom:8px"></textarea>
+        <button onclick="clientDocProblemSubmit('${j.id}')" class="btn-danger" style="width:100%;padding:10px;font-size:13px;font-weight:600">
+          ✗ Report Document Problem
+        </button>
+      </div>
+    </div>`;
+
+  return '';
+}
+
+function renderDocStatus(j) {
+  const docSec = j.checklist?.find(s=>s.id==='documents');
+  if (!docSec) return '<div style="color:#64748b;font-size:13px">No documents yet — service not started.</div>';
+  const steps   = docSec.steps.filter(x=>!x.skipped && !x.isTextNote);
+  const allDone = steps.every(x=>x.done);
+
+  const rows = steps.map(s => {
+    const tick = `<div style="width:16px;height:16px;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${s.done?'#34d399':'#1e293b'};border:2px solid ${s.done?'#34d399':'#334155'}">${s.done?'<span style="color:#0a1220;font-size:9px;font-weight:700">✓</span>':''}</div>`;
+    const files = s.uploadedFiles || [];
+
+    return `<div style="padding:8px 0;border-bottom:1px solid #1e293b">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:${files.length?'6px':'0'}">
+        ${tick}
+        <span style="font-size:13px;color:${s.done?'#34d399':'#94a3b8'};font-weight:600;flex:1">${s.label}</span>
+        ${!files.length?'<span style="font-size:11px;color:#334155">Pending</span>':''}
+      </div>
+      ${files.map(f=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;background:#1e293b;border-radius:7px;margin-bottom:4px">
+          <span style="font-size:12px;color:#94a3b8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${f.original||f.filename}</span>
+          <a href="${f.fileUrl}" target="_blank" style="font-size:11px;font-weight:600;color:#38bdf8;background:#0c2a3a;padding:3px 10px;border-radius:6px;border:1px solid rgba(56,189,248,.3);white-space:nowrap;text-decoration:none">View</a>
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+
+  return `${allDone?'<div class="alert-success" style="margin-bottom:10px">✓ All documents submitted</div>':''}${rows}`;
+}
+
+
+// ── Reschedule ────────────────────────────────────────────────────────────────
+
+
+async function clientSystemOk(jobId){
+  await apiFetch(capi('/jobs/'+jobId+'/system-ok'),{method:'POST'});
+  loadJobs();
+}
+function clientSystemProblemShow(jobId) {
+  const el = document.getElementById('sysprob-'+jobId);
+  if (el) el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+async function clientSystemProblemSubmit(jobId) {
+  const msg = document.getElementById('sysprob-text-'+jobId)?.value.trim();
+  if (!msg) { alert('Please describe the problem first.'); return; }
+  const res  = await apiFetch(capi('/jobs/'+jobId+'/report-problem'),{method:'POST',body:JSON.stringify({message:msg,checkpoint:'system'})});
+  const data = await res.json();
+  if (!data.ok) { alert(data.error||'Error'); return; }
+  loadJobs();
+}
+async function clientReportProblem(jobId, checkpoint) {
+  const inp = document.getElementById('problem-msg-'+jobId);
+  const message = inp?.value.trim();
+  if (!message) { inp?.focus(); inp?.style && (inp.style.borderColor='#f87171'); alert('Please describe the problem before submitting.'); return; }
+  const res  = await apiFetch(capi('/jobs/'+jobId+'/report-problem'),{method:'POST',body:JSON.stringify({message, checkpoint})});
+  const data = await res.json();
+  if (!data.ok) { alert(data.error||'Error'); return; }
+  loadJobs();
+}
+async function clientDocProblemSubmit(jobId) {
+  const msg = document.getElementById('docprob-text-'+jobId)?.value.trim();
+  if (!msg) { alert('Please describe the problem first.'); return; }
+  const res  = await apiFetch(capi('/jobs/'+jobId+'/report-problem'),{method:'POST',body:JSON.stringify({message:msg,checkpoint:'documents'})});
+  const data = await res.json();
+  if (!data.ok) { alert(data.error||'Error'); return; }
+  loadJobs();
+}
+async function clientTruckReply(jobId) {
+  const inp = document.getElementById('truck-reply-'+jobId);
+  const message = inp?.value.trim();
+  if (!message) { alert('Please type a message first.'); return; }
+  const res  = await apiFetch(capi('/jobs/'+jobId+'/truck-reply'),{method:'POST',body:JSON.stringify({message})});
+  const data = await res.json();
+  if (!data.ok) { alert(data.error||'Error'); return; }
+  loadJobs();
+}
+function clientSystemProblemShow(jobId){
+  document.getElementById('sysprob-'+jobId).style.display='block';
+}
+async function clientSystemProblemSubmit(jobId){
+  const reason=document.getElementById('sysprob-text-'+jobId)?.value.trim();
+  if(!reason){alert('Please describe the issue.');return;}
+  await apiFetch(capi('/jobs/'+jobId+'/system-problem'),{method:'POST',body:JSON.stringify({reason})});
+  loadJobs();
+}
+
+async function saveTruck(jobId){
+  const val = document.getElementById('truck-edit-'+jobId)?.value.trim();
+  if(!val){ alert('Please enter a truck number.'); return; }
+  await apiFetch(capi('/jobs/'+jobId+'/set-truck'),{method:'POST',body:JSON.stringify({truck:val})});
+  loadJobs();
+}
+async function clientConfirmOk(jobId){
+  await apiFetch(capi('/jobs/'+jobId+'/confirm-ok'),{method:'POST'});
+  loadJobs();
+}
+// clientReportProblem handled above
+async function clientSubmitProblem(jobId){
+  const reason=document.getElementById('problem-text-'+jobId)?.value.trim();
+  if(!reason){alert('Please describe the problem.');return;}
+  await apiFetch(capi('/jobs/'+jobId+'/report-problem'),{method:'POST',body:JSON.stringify({message:reason,checkpoint:'documents'})});
+  loadJobs();
+}
+async function respondReschedule(jobId, accept) {
+  await apiFetch(capi(`/jobs/${jobId}/reschedule/respond`), {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ accept })
+  });
+  loadJobs();
+}
+
+// ── New form ──────────────────────────────────────────────────────────────────
+async function showNewForm() {
+  document.getElementById('new-modal').classList.add('open');
+  try {
+    const res  = await apiFetch(capi('/form-data'));
+    const data = await res.json();
+    _countryInstallers = {};
+    (data.installers||[]).forEach(u=>(u.countries||[]).forEach(co=>{
+      _countryInstallers[co] = (_countryInstallers[co]||[]).concat(u.name);
+    }));
+    const sel = document.getElementById('f-country');
+    if (sel) {
+      const countries = Object.keys(_countryInstallers).sort();
+      sel.innerHTML = '<option value="">Select country…</option>';
+      countries.forEach(co=>{ sel.innerHTML += `<option value="${co}">${co}</option>`; });
+      sel.innerHTML += '<option value="__other__">Other (type below)</option>';
+    }
+  } catch(e) { console.error('Could not load form data', e); }
+  updateInstallerNote();
+}
+function closeNewForm() { document.getElementById('new-modal').classList.remove('open'); }
+
+function updateServiceForm() {
+  const svc = document.getElementById('f-service')?.value;
+  const unitWrap = document.getElementById('f-unit-wrap');
+  if (unitWrap) unitWrap.style.display = svc === 'Inspection' ? 'none' : '';
+}
+function updateInstallerNote() {
+  const sel = document.getElementById('f-country');
+  const otherInput = document.getElementById('f-country-other');
+  if (!sel) return;
+  // Show/hide other input
+  if (otherInput) otherInput.style.display = sel.value === '__other__' ? 'block' : 'none';
+  const country = sel.value === '__other__' ? (otherInput?.value.trim()||'') : sel.value;
+  const noteEl = document.getElementById('installer-note');
+  if (!noteEl) return;
+  if (!country) { noteEl.innerHTML = ''; return; }
+  const names = _countryInstallers[country];
+  if (names?.length) noteEl.innerHTML = `<b style="color:#38bdf8">Installer will be assigned</b> for ${country}`;
+  else noteEl.innerHTML = `<b style="color:#fbbf24">No installer registered for this country yet.</b> Your request will still be submitted and assigned manually.`;
+}
+
+async function submitRequest() {
+  const location = document.getElementById('f-location').value.trim();
+  const date     = document.getElementById('f-date').value;
+  const country  = document.getElementById('f-country').value;
+  const timeH    = document.getElementById('f-time-h')?.value;
+  const timeM    = document.getElementById('f-time-m')?.value;
+  const time     = (timeH && timeM) ? timeH+':'+timeM : '';
+  if (!location) { alert('Please enter a location.'); return; }
+  if (!date)     { alert('Please select a service date.'); return; }
+  if (!time)     { alert('Please select a service time.'); return; }
+  const _cselV = document.getElementById('f-country');
+  const _countryCheck = _cselV?.value === '__other__' ? (document.getElementById('f-country-other')?.value.trim()||'') : (_cselV?.value||'');
+  if (!_countryCheck) { alert('Please select or enter a country.'); return; }
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  const _csel2 = document.getElementById('f-country');
+  const finalCountry = _csel2?.value === '__other__' ? (document.getElementById('f-country-other')?.value.trim()||'') : (_csel2?.value||'');
+  const res = await apiFetch(capi('/jobs'), {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      location, truck: document.getElementById('f-truck').value.trim(),
+      country: finalCountry, date, time,
+      serviceType: document.getElementById('f-service')?.value || 'Installation',
+      unitType: document.getElementById('f-service')?.value === 'Inspection' ? 'N/A' : document.getElementById('f-unit').value,
+      clientId: getAuth()?.clientId || '',
+    })
+  });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = 'Submit Request';
+  if (data.ok) { closeNewForm(); loadJobs(); }
+  else alert('Error: ' + (data.error||'Unknown'));
+}
+
+
+// ── Suggest alternative ───────────────────────────────────────────────────────
+let suggestJobId = null;
+function openSuggest(jobId) {
+  suggestJobId = jobId;
+  const j = jobs.find(x=>x.id===jobId);
+  document.getElementById('s-date').value = j?.rescheduleProposal?.proposedDate || j?.date || '';
+  if(document.getElementById('s-time-h')) document.getElementById('s-time-h').value=''; if(document.getElementById('s-time-m')) document.getElementById('s-time-m').value='00';
+  document.getElementById('s-note').value = '';
+  document.getElementById('suggest-modal').classList.add('open');
+}
+function closeSuggest() { document.getElementById('suggest-modal').classList.remove('open'); }
+async function submitSuggest() {
+  const proposedDate = document.getElementById('s-date').value;
+  const sh=document.getElementById('s-time-h')?.value; const sm=document.getElementById('s-time-m')?.value; const proposedTime=(sh&&sm)?sh+':'+sm:'';
+  const note = document.getElementById('s-note').value.trim();
+  if (!proposedDate) { alert('Please select a proposed date.'); return; }
+  if (!proposedTime) { alert('Please select a proposed time.'); return; }
+  await apiFetch(capi(`/jobs/${suggestJobId}/reschedule/suggest`), {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ proposedDate, proposedTime, note })
+  });
+  closeSuggest();
+  loadJobs();
+}
+
+let _refreshTimer=null;
+function scheduleRefresh(){ clearTimeout(_refreshTimer); _refreshTimer=setTimeout(loadJobs,400); }
+
+function renderActivityLog(j) {
+  const log = j.activityLog || [];
+  if (!log.length) return '';
+  const rows = log.map(e => `
+    <div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #0d1829">
+      <div style="width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px;background:${e.role==='client'?'#38bdf8':e.role==='installer'?'#a78bfa':e.role==='admin'?'#34d399':'#475569'}"></div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+          <span style="font-size:12px;color:#f1f5f9;font-weight:600">${e.event}</span>
+          <span style="font-size:10px;color:#475569">${e.who} · ${e.at}</span>
+        </div>
+        ${e.detail?`<div style="font-size:11px;color:#64748b;margin-top:2px;font-style:italic">"${e.detail}"</div>`:''}
+      </div>
+    </div>`).join('');
+  return `<div class="card" style="margin-bottom:16px">
+    <div class="card-title" style="margin-bottom:10px">📋 Activity Log</div>
+    ${rows}
+  </div>`;
+}
+checkAuth();
+</script>
+
+<!-- SUGGEST ALTERNATIVE MODAL -->
+<div class="modal-overlay" id="suggest-modal">
+  <div class="modal fade-in">
+    <div class="modal-title">Suggest Alternative Time</div>
+    <p style="font-size:13px;color:#94a3b8;margin-bottom:16px">Propose a different date/time back to the installer.</p>
+    <div class="form-grid">
+      <div class="form-field">
+        <label class="form-label">Your Proposed Date</label>
+        <input class="form-input" id="s-date" type="date"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Your Proposed Time</label>
+        <div class="time-picker-wrap">
+          <select class="time-sel form-input" id="s-time-h" style="flex:1"><option value="">HH</option><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+          <span style="color:#64748b;font-weight:700">:</span>
+          <select class="time-sel form-input" id="s-time-m" style="flex:1"><option value="00">00</option><option value="05">05</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="35">35</option><option value="40">40</option><option value="45">45</option><option value="50">50</option><option value="55">55</option></select>
+        </div>
+      </div>
+      <div class="form-field" style="grid-column:1/-1">
+        <label class="form-label">Note (optional)</label>
+        <input class="form-input" id="s-note" placeholder="e.g. Earliest we can do is Thursday morning"/>
+      </div>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-secondary" style="flex:1" onclick="closeSuggest()">Cancel</button>
+      <button class="btn-primary" style="flex:2" onclick="submitSuggest()">Send Suggestion</button>
+    </div>
+  </div>
+</div>
+
+
+
+<div style="position:fixed;bottom:0;left:0;right:0;height:26px;background:#050b14;border-top:1px solid #0d1829;display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:none">
+  <span style="font-size:11px;color:#1e293b;letter-spacing:.08em;font-weight:600">POWERED BY</span>
+  <span style="font-size:11px;color:#334155;font-weight:700;margin-left:6px;letter-spacing:.04em">WEBANCHOR</span>
+</div>
+<div style="height:26px"></div><!-- footer spacer -->
+</body>
+</html>
