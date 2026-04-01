@@ -359,15 +359,7 @@ function renderJobList() {
       <div class="job-card-top">
         <span class="job-id">${j.id}</span>
         <span class="job-name">${j.name||j.location}</span>
-        ${(()=>{
-          // Only ONE primary badge at a time
-          if(j.clientConfirmed) return badgeHTML('Completed');
-          if(j.truckUnavailable) return '<span class="badge" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">✕ Truck Unavailable</span>';
-          if(j.problemReport) return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f8717140">⚠ Problem Reported</span>';
-          const installDone=j.checklist?.find(s=>s.id==='service')?.steps.find(s=>s.id==='service_complete')?.done||j.systemCheckPending||j.systemOk;
-          const docsDone=j.checklist?.find(s=>s.id==='documents')?.steps.filter(x=>!x.skipped&&!x.isTextNote).every(x=>x.done);
-          return getJobBadge(j);
-        })()}
+        ${getJobBadge(j)}
         ${j.jobStatusNote && j.jobStatusNote!=='Rescheduled — new time confirmed' && j.rescheduleProposal?.status==='pending' ? '' : j.jobStatusNote ? `<span style="font-size:11px;color:#64748b;font-style:italic">${j.jobStatusNote}</span>` : ''}
       </div>
       <div class="job-meta">
