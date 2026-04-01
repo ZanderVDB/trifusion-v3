@@ -1148,49 +1148,70 @@ async function adminResolveProblem(jobId) {
 }
 
 function openAddRecord() {
-  // Populate installer dropdown from users
   apiFetch(capi('/users')).then(r=>r.json()).then(users=>{
+    window._arInstallers = Object.values(users).filter(u=>u.role==='installer');
+    // Installer dropdown
     const instSel = document.getElementById('ar-installer');
     if (instSel) {
-      const installers = Object.values(users).filter(u=>u.role==='installer');
       instSel.innerHTML = '<option value="">Select installer…</option>' +
-        installers.map(u=>`<option value="${u.installer||u.name}">${u.name}${u.companyName?' ('+u.companyName+')':''}</option>`).join('');
+        window._arInstallers.map(u=>`<option value="${u.installer||u.name}" data-countries="${(u.countries||[]).join(',')}">${u.name}${u.companyName?' ('+u.companyName+')':''}</option>`).join('');
     }
-    // Populate client dropdown from users
+    // Client dropdown
     const clientSel = document.getElementById('ar-client');
     if (clientSel) {
       const clients = Object.values(users).filter(u=>u.role==='client');
       clientSel.innerHTML = '<option value="">Select client…</option>' +
         clients.map(u=>`<option value="${u.clientId||u.username}">${u.name}${u.companyName?' ('+u.companyName+')':''}</option>`).join('');
     }
-    // Populate country dropdown from installers
-    const countrySel = document.getElementById('ar-country');
-    if (countrySel) {
-      const allCountries = [...new Set(installers.flatMap(u=>u.countries||[]))].sort();
-      countrySel.innerHTML = '<option value="">Select country…</option>' +
-        allCountries.map(co=>`<option value="${co}">${co}</option>`).join('') +
-        '<option value="__other">Other…</option>';
-    }
-    // Store installers for auto-select
-    window._arInstallers = Object.values(users).filter(u=>u.role==='installer');
   }).catch(()=>{});
-  // Default dates to today
   const today = new Date().toISOString().slice(0,10);
   document.getElementById('ar-date').value = today;
   document.getElementById('ar-completion').value = today;
+  document.getElementById('ar-country').value = '';
   document.getElementById('ar-msg').textContent = '';
+  window._arFiles = { 'ar-jobcard': [], 'ar-checklist': [], 'ar-images': [] };
+  ['ar-jobcard-list','ar-checklist-list','ar-images-list'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.innerHTML='';
+  });
+  document.getElementById('ar-doc-list').innerHTML = '';
   document.getElementById('add-record-modal').classList.add('open');
 }
-function arAutoSelectInstaller() {
-  const country = document.getElementById('ar-country')?.value;
-  if (!country || country === '__other') return;
-  const installers = window._arInstallers || [];
-  const countryLower = country.toLowerCase();
-  const match = installers.find(u=>(u.countries||[]).some(co=>co.toLowerCase()===countryLower));
-  if (match) {
-    const sel = document.getElementById('ar-installer');
-    if (sel) sel.value = match.installer || match.name;
+
+// Staged file store for Add Record
+window._arFiles = { 'ar-jobcard': [], 'ar-checklist': [], 'ar-images': [] };
+
+function arAddFile(inputId, listId, multiple) {
+  const input = document.getElementById(inputId);
+  if (!input || !input.files.length) return;
+  const store = window._arFiles[inputId];
+  for (const file of input.files) {
+    if (!multiple) store.length = 0; // replace if single
+    store.push(file);
   }
+  input.value = ''; // reset so same file can be re-added
+  arRenderFileList(inputId, listId);
+}
+
+function arRenderFileList(inputId, listId) {
+  const el = document.getElementById(listId);
+  if (!el) return;
+  const files = window._arFiles[inputId] || [];
+  el.innerHTML = files.map((f, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:5px 10px;background:#1e293b;border-radius:6px;margin-bottom:4px">
+      <span style="font-size:12px;color:#e2e8f0;flex:1">📄 ${f.name}</span>
+      <span style="font-size:11px;color:#475569">${(f.size/1024).toFixed(0)} KB</span>
+      <button onclick="window._arFiles['${inputId}'].splice(${i},1);arRenderFileList('${inputId}','${listId}')" 
+        style="background:transparent;border:none;color:#f87171;font-size:14px;cursor:pointer;padding:0 4px">✕</button>
+    </div>`).join('');
+}
+
+function arInstallerChanged() {
+  const sel = document.getElementById('ar-installer');
+  const opt = sel?.selectedOptions?.[0];
+  const countries = opt?.dataset?.countries || '';
+  // Fill country with first country from installer, or blank
+  const countryInput = document.getElementById('ar-country');
+  if (countryInput) countryInput.value = countries.split(',')[0] || '';
 }
 function closeAddRecord() {
   document.getElementById('add-record-modal').classList.remove('open');
@@ -1267,25 +1288,22 @@ async function submitAddRecord() {
     { inputId:'ar-checklist', secId:'documents', stepId:'doc_checklist' },
   ];
   for (const { inputId, secId, stepId } of docUploads) {
-    const inp = document.getElementById(inputId);
-    if (inp?.files?.[0]) {
+    const stagedFiles = window._arFiles?.[inputId] || [];
+    if (stagedFiles.length) {
       const fd = new FormData();
-      fd.append('file', inp.files[0]);
+      fd.append('file', stagedFiles[0]);
       fd.append('secId', secId);
       fd.append('stepId', stepId);
       await apiUpload(capi('/jobs/'+newJobId+'/upload'), fd);
     }
   }
-  // Upload images
-  const imgs = document.getElementById('ar-images');
-  if (imgs?.files?.length) {
-    for (const file of imgs.files) {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('secId', 'documents');
-      fd.append('stepId', 'doc_images');
-      await apiUpload(capi('/jobs/'+newJobId+'/upload'), fd);
-    }
+  // Upload images from staged store
+  for (const file of (window._arFiles?.['ar-images'] || [])) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('secId', 'documents');
+    fd.append('stepId', 'doc_images');
+    await apiUpload(capi('/jobs/'+newJobId+'/upload'), fd);
   }
 
   closeAddRecord();
@@ -1458,12 +1476,14 @@ checkAuth();
     <div class="form-grid">
       <div class="form-field"><label class="form-label">Location *</label><input class="form-input" id="ar-location" placeholder="e.g. Korridor Lusaka Truck Stop"/></div>
       <div class="form-field"><label class="form-label">Truck Number</label><input class="form-input" id="ar-truck" placeholder="e.g. ABS7267"/></div>
-      <div class="form-field"><label class="form-label">Country *</label>
-        <select class="form-input" id="ar-country" onchange="arAutoSelectInstaller()">
-          <option value="">Select country…</option>
+      <div class="form-field"><label class="form-label">Installer</label>
+        <select class="form-input" id="ar-installer" onchange="arInstallerChanged()">
+          <option value="">Select installer…</option>
         </select>
       </div>
-      <div class="form-field"><label class="form-label">Installer</label><select class="form-input" id="ar-installer"><option value="">Select installer…</option></select></div>
+      <div class="form-field"><label class="form-label">Country</label>
+        <input class="form-input" id="ar-country" placeholder="Auto-filled from installer" readonly style="opacity:.7;cursor:default"/>
+      </div>
       <div class="form-field"><label class="form-label">Client</label>
         <select class="form-input" id="ar-client"><option value="">Select client…</option></select>
       </div>
@@ -1488,11 +1508,44 @@ checkAuth();
     <!-- Documents -->
     <div style="margin-top:18px;border-top:1px solid #1e293b;padding-top:16px">
       <div class="card-title" style="margin-bottom:12px">📄 Documents</div>
-      <div class="form-grid">
-        <div class="form-field"><label class="form-label">Job Card</label><input type="file" class="form-input" id="ar-jobcard" accept=".pdf,.jpg,.jpeg,.png"/></div>
-        <div class="form-field"><label class="form-label">Inspection Checklist</label><input type="file" class="form-input" id="ar-checklist" accept=".pdf,.jpg,.jpeg,.png"/></div>
-        <div class="form-field" style="grid-column:1/-1"><label class="form-label">Images (select multiple)</label><input type="file" class="form-input" id="ar-images" accept=".jpg,.jpeg,.png" multiple/></div>
-        <div class="form-field" style="grid-column:1/-1"><label class="form-label">Additional Notes</label><textarea class="form-input" id="ar-notes" rows="2" placeholder="Any notes about this job…" style="resize:vertical"></textarea></div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+
+        <!-- Job Card -->
+        <div>
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Job Card</div>
+          <div id="ar-jobcard-list" style="margin-bottom:6px"></div>
+          <label style="display:inline-flex;align-items:center;gap:6px;background:#1e293b;border:1px dashed #334155;border-radius:7px;padding:7px 14px;color:#94a3b8;font-size:12px;cursor:pointer">
+            <span>+ Add File</span>
+            <input type="file" id="ar-jobcard" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="arAddFile('ar-jobcard','ar-jobcard-list',false)"/>
+          </label>
+        </div>
+
+        <!-- Checklist -->
+        <div>
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Inspection Checklist</div>
+          <div id="ar-checklist-list" style="margin-bottom:6px"></div>
+          <label style="display:inline-flex;align-items:center;gap:6px;background:#1e293b;border:1px dashed #334155;border-radius:7px;padding:7px 14px;color:#94a3b8;font-size:12px;cursor:pointer">
+            <span>+ Add File</span>
+            <input type="file" id="ar-checklist" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="arAddFile('ar-checklist','ar-checklist-list',false)"/>
+          </label>
+        </div>
+
+        <!-- Images -->
+        <div>
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Images (multiple)</div>
+          <div id="ar-images-list" style="margin-bottom:6px"></div>
+          <label style="display:inline-flex;align-items:center;gap:6px;background:#1e293b;border:1px dashed #334155;border-radius:7px;padding:7px 14px;color:#94a3b8;font-size:12px;cursor:pointer">
+            <span>+ Add Images</span>
+            <input type="file" id="ar-images" accept=".jpg,.jpeg,.png" multiple style="display:none" onchange="arAddFile('ar-images','ar-images-list',true)"/>
+          </label>
+        </div>
+
+        <!-- Notes -->
+        <div>
+          <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Additional Notes</div>
+          <textarea class="form-input" id="ar-notes" rows="2" placeholder="Any notes about this job…" style="resize:vertical"></textarea>
+        </div>
+
       </div>
     </div>
     <div id="ar-msg" style="font-size:13px;color:#f87171;margin-top:10px"></div>
