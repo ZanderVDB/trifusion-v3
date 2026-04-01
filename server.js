@@ -480,8 +480,17 @@ app.put('/api/:companyId/users/:username', requireCompanyAuth('admin'), (req, re
   const cid = req.params.companyId;
   const users = getCompanyUsers(cid);
   if (!users[req.params.username]) return res.json({ ok:false, error:'User not found' });
+  const oldUsername = req.params.username;
+  const { newUsername } = req.body;
   const allowed = ['password','name','companyName','countries','email'];
-  allowed.forEach(k => { if (req.body[k] !== undefined) users[req.params.username][k] = req.body[k]; });
+  allowed.forEach(k => { if (req.body[k] !== undefined) users[oldUsername][k] = req.body[k]; });
+  // Handle username change
+  if (newUsername && newUsername !== oldUsername) {
+    if (users[newUsername]) return res.json({ ok:false, error:'Username already taken' });
+    users[oldUsername].username = newUsername;
+    users[newUsername] = users[oldUsername];
+    delete users[oldUsername];
+  }
   saveCompanyUsers(cid, users);
   res.json({ ok:true });
 });
