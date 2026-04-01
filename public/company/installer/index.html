@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="/shared.css"/>
 <script src="/auth.js"></script>
 <style>
+  .job-card-left{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .job-card-badge{flex-shrink:0;text-align:right}
   .job-card{background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:16px 18px;cursor:pointer;transition:all .15s;margin-bottom:8px}
   .job-card:hover{background:#0d1829;transform:translateY(-1px)}
   .job-card-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
@@ -218,7 +220,9 @@ async function loadJobs(){
     if (!Array.isArray(data)) { console.error('Bad jobs response:', data); return; }
     jobs = data;
     // Always update counts
-    document.getElementById('tc-active').textContent=jobs.filter(j=>j.status!=='Completed').length;
+    const _needsAttn = jobs.filter(j=>j.status!=='Completed'&&(j.truckUnavailable||j.problemReport?.status==='open'||j.rescheduleProposal?.status==='pending'||(j.needsAssignment&&!j.technician)||jobUrgencyStyle(j).length>0||j.status==='Pending Acceptance'));
+  document.getElementById('tc-needs-attention') && (document.getElementById('tc-needs-attention').textContent=_needsAttn.length);
+  document.getElementById('tc-active').textContent=jobs.filter(j=>j.status!=='Completed').length;
     document.getElementById('tc-completed').textContent=jobs.filter(j=>j.status==='Completed').length;
     if(currentJobId){
       const activeEl = document.activeElement;
@@ -239,7 +243,7 @@ const STATUS_META = {
   'Waiting for Docs':        {color:'#fb923c', bg:'#2d1a0a', dot:'#fb923c'},
   'Awaiting Document Check': {color:'#a78bfa', bg:'#1e1130', dot:'#a78bfa'},
   'Completed':               {color:'#34d399', bg:'#0a2a1e', dot:'#34d399'},
-  'Truck Unavailable':       {color:'#f87171', bg:'#2a0f0f', dot:'#f87171'},
+  'Vehicle Unavailable':       {color:'#f87171', bg:'#2a0f0f', dot:'#f87171'},
   'Not Started':             {color:'#64748b', bg:'#1e293b', dot:'#64748b'},
 };
 function badgeHTML(s) {
@@ -248,22 +252,17 @@ function badgeHTML(s) {
 }
 
 function getJobBadge(j) {
+  if (j.forceCompleted) return '<span class="badge" style="background:#1a1a0a;color:#fbbf24;border:1px solid #fbbf24">⚠ Completed by Admin</span>';
   if (j.clientConfirmed) return badgeHTML('Completed');
-
-  // Truck unavailable — uniform across all portals
+  if (j.needsAssignment && !j.technician) return '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">⚠ Needs Installer Assignment</span>';
   if (j.truckUnavailable) {
-    return j.clientTruckReply
-      ? '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable — Awaiting Installer</span>'
-      : '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable — Awaiting Client</span>';
+    const label = j.clientTruckReply ? '🚫 Vehicle Unavailable — Awaiting Installer' : '🚫 Vehicle Unavailable — Awaiting Client';
+    return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">' + label + '</span>';
   }
-
-  // Problem reports — uniform, differentiated by checkpoint
   if (j.problemReport?.status === 'open') {
     const type = j.problemReport.checkpoint === 'documents' ? 'Document' : 'System';
     return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">⚠ ' + type + ' Problem — Awaiting Installer</span>';
   }
-
-  // Reschedule — uniform, show whose turn it is
   if (j.rescheduleProposal?.status === 'pending') {
     const lr = j.rescheduleThread?.[j.rescheduleThread.length - 1]?.role;
     const clientTurn = !lr || lr === 'installer';
@@ -271,7 +270,6 @@ function getJobBadge(j) {
       ? '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">↺ Reschedule — Awaiting Client</span>'
       : '<span class="badge pulse" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">↺ Reschedule — Awaiting Installer</span>';
   }
-
   return badgeHTML(j.status);
 }
 function progressOf(cl){if(!cl)return{done:0,total:0};const all=cl.flatMap(s=>s.steps.filter(x=>!x.skipped));return{done:all.filter(x=>x.done).length,total:all.length};}
@@ -288,6 +286,8 @@ function setTab(tab,el){
 function renderDashboard(){
   document.getElementById('dashboard').style.display='block';
   document.getElementById('detail-view').style.display='none';
+  const _needsAttn = jobs.filter(j=>j.status!=='Completed'&&(j.truckUnavailable||j.problemReport?.status==='open'||j.rescheduleProposal?.status==='pending'||(j.needsAssignment&&!j.technician)||jobUrgencyStyle(j).length>0||j.status==='Pending Acceptance'));
+  document.getElementById('tc-needs-attention') && (document.getElementById('tc-needs-attention').textContent=_needsAttn.length);
   document.getElementById('tc-active').textContent=jobs.filter(j=>j.status!=='Completed').length;
   document.getElementById('tc-completed').textContent=jobs.filter(j=>j.status==='Completed').length;
   document.getElementById('tc-all').textContent=jobs.length;
@@ -302,7 +302,7 @@ function renderJobList(){
     list = [...jobs];
     const q  = document.getElementById('inst-search')?.value.toLowerCase()||'';
     const fs = document.getElementById('inst-filter-status')?.value||'';
-    if (q)  list = list.filter(j=>(j.id+' '+j.location+' '+(j.clientCompanyName||'')+' '+(j.country||'')).toLowerCase().includes(q));
+    if (q)  list = list.filter(j=>(j.id+' '+j.location+' '+(j.clientCompanyName||'')+' '+(j.clientName||'')+' '+(j.country||'')+' '+(j.truck||'')+' '+(j.serviceType||'')+' '+(j.date||'')+' '+(j.technician||'')).toLowerCase().includes(q));
     if (fs) list = list.filter(j=>j.status===fs);
   } else {
     list = jobs.filter(j=>j.status!=='Completed');
@@ -315,19 +315,22 @@ function renderJobList(){
     const isClientCounter = j.rescheduleProposal?.status==='pending' && j.rescheduleProposal?.proposedBy?.includes('(client)');
     const needsAccept = !j.accepted && !(j.checklist?.find(s=>s.id==='accepted')?.steps[0]?.done);
     return `<div class="job-card" onclick="showDetail('${j.id}')" style="${jobUrgencyStyle(j)}">
-      <div class="job-card-top">
-        <span class="job-id">${j.id}</span>
-        <span class="job-name">${j.name||j.location}</span>
-${getJobBadge(j)}
+      <div class="job-card-top" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px">
+        <div class="job-card-left">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="job-id">${j.id}</span>
+            <span class="job-name">${j.name||j.location}</span>
+          </div>
+          <div class="job-meta" style="margin-top:4px">
+            <span>🚛 ${j.truck||'TBC'}</span>
+            <span>🔧 ${j.serviceType||'Installation'}</span>
+            <span>📍 ${j.location}</span>
+            <span>📅 ${j.date}${j.time?' '+j.time:''}</span>
+            <span>🏢 ${j.clientCompanyName||j.clientName||'Client'}</span>
+          </div>
+        </div>
+        <div class="job-card-badge">${getJobBadge(j)}</div>
       </div>
-      <div class="job-meta">
-        <span>🏢 ${j.clientCompanyName||j.clientName||'Client'}</span>
-        <span>📍 ${j.location}</span>
-        <span>📅 ${j.date}${j.time?' '+j.time:''}</span>
-        <span>🚛 ${j.truck||'TBC'}</span>
-        <span>🔧 ${j.serviceType||'Installation'}</span>
-      </div>
-
       <div class="progress-wrap" style="margin-top:8px">
         <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${pct===100?'#34d399':'#38bdf8'}"></div></div>
         <span class="progress-label">${prog.done}/${prog.total}</span>
@@ -557,13 +560,13 @@ function renderDetail(id){
       return isAccepted && !j.truckUnavailable && !j.clientConfirmed && !serviceComplete;
     })() ? `
     <div class="card" style="margin-top:14px;border-color:rgba(248,113,113,.2)">
-      <div class="card-title" style="color:#f87171">⚠ Truck Unavailable?</div>
+      <div class="card-title" style="color:#f87171">⚠ Vehicle Unavailable?</div>
       <p style="font-size:13px;color:#94a3b8;margin-bottom:12px">If the truck could not be installed, mark it here and add a reason.</p>
       <textarea id="truck-reason" rows="2" placeholder="e.g. Truck wiring was damaged, driver not present…"
         style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:7px;padding:8px 10px;color:#e2e8f0;font-size:12px;font-family:inherit;resize:vertical;margin-bottom:10px"></textarea>
       <div style="font-size:11px;color:#f87171;margin-bottom:4px">* Reason is required</div>
       <button onclick="markTruckUnavailable('${j.id}')" style="background:#7f1d1d;border:1px solid #f87171;border-radius:8px;padding:9px 18px;color:#fca5a5;font-size:13px;font-weight:600;cursor:pointer;width:100%">
-        ✕ Mark Truck as Unavailable
+        ✕ Mark Vehicle as Unavailable
       </button>
     </div>` : ''}
     ${j.truckUnavailable ? `
@@ -592,7 +595,9 @@ async function acceptJob(jobId){
     const idx=jobs.findIndex(j=>j.id===jobId);
     if(idx>=0) jobs[idx]=updatedJob;
     renderDetail(jobId);
-    document.getElementById('tc-active').textContent=jobs.filter(j=>j.status!=='Completed').length;
+    const _needsAttn = jobs.filter(j=>j.status!=='Completed'&&(j.truckUnavailable||j.problemReport?.status==='open'||j.rescheduleProposal?.status==='pending'||(j.needsAssignment&&!j.technician)||jobUrgencyStyle(j).length>0||j.status==='Pending Acceptance'));
+  document.getElementById('tc-needs-attention') && (document.getElementById('tc-needs-attention').textContent=_needsAttn.length);
+  document.getElementById('tc-active').textContent=jobs.filter(j=>j.status!=='Completed').length;
     document.getElementById('tc-completed').textContent=jobs.filter(j=>j.status==='Completed').length;
   } else alert('Error: '+(data.error||'Unknown'));
 }
@@ -607,7 +612,9 @@ async function toggleStep(jobId,secId,stepId,done){
     if(step) step.done = done;
     if(result.status) job.status = result.status;
     renderDetail(jobId);
-    document.getElementById('tc-active').textContent=jobs.filter(j=>j.status!=='Completed').length;
+    const _needsAttn = jobs.filter(j=>j.status!=='Completed'&&(j.truckUnavailable||j.problemReport?.status==='open'||j.rescheduleProposal?.status==='pending'||(j.needsAssignment&&!j.technician)||jobUrgencyStyle(j).length>0||j.status==='Pending Acceptance'));
+  document.getElementById('tc-needs-attention') && (document.getElementById('tc-needs-attention').textContent=_needsAttn.length);
+  document.getElementById('tc-active').textContent=jobs.filter(j=>j.status!=='Completed').length;
     document.getElementById('tc-completed').textContent=jobs.filter(j=>j.status==='Completed').length;
   }
 }
@@ -853,5 +860,6 @@ async function markProblemFixed(jobId) {
 }
 checkAuth();
 </script>
+<div style="text-align:center;padding:24px 0 16px;font-size:11px;color:#1e293b">Powered by <span style="color:#38bdf8;font-weight:600">WebAncher</span></div>
 </body>
 </html>

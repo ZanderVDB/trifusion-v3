@@ -8,7 +8,9 @@
 <style>
   .job-card{background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:14px 18px;cursor:pointer;transition:all .15s;margin-bottom:8px}
   .job-card:hover{background:#0d1829}
-  .job-card-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .job-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+  .job-card-left{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .job-card-badge{flex-shrink:0;text-align:right}
   .job-id{font-family:'DM Mono',monospace;font-size:12px;color:#64748b}
   .job-name{font-weight:700;font-size:13px;color:#f1f5f9}
   .job-meta{display:flex;gap:12px;font-size:11px;color:#64748b;flex-wrap:wrap}
@@ -275,7 +277,7 @@ const STATUS_META = {
   'Waiting for Docs':        {color:'#fb923c', bg:'#2d1a0a', dot:'#fb923c'},
   'Awaiting Document Check': {color:'#a78bfa', bg:'#1e1130', dot:'#a78bfa'},
   'Completed':               {color:'#34d399', bg:'#0a2a1e', dot:'#34d399'},
-  'Truck Unavailable':       {color:'#f87171', bg:'#2a0f0f', dot:'#f87171'},
+  'Vehicle Unavailable':       {color:'#f87171', bg:'#2a0f0f', dot:'#f87171'},
   'Not Started':             {color:'#64748b', bg:'#1e293b', dot:'#64748b'},
 };
 function badgeHTML(s) {
@@ -284,22 +286,17 @@ function badgeHTML(s) {
 }
 
 function getJobBadge(j) {
+  if (j.forceCompleted) return '<span class="badge" style="background:#1a1a0a;color:#fbbf24;border:1px solid #fbbf24">⚠ Completed by Admin</span>';
   if (j.clientConfirmed) return badgeHTML('Completed');
-
-  // Truck unavailable — uniform across all portals
+  if (j.needsAssignment && !j.technician) return '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">⚠ Needs Installer Assignment</span>';
   if (j.truckUnavailable) {
-    return j.clientTruckReply
-      ? '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable — Awaiting Installer</span>'
-      : '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable — Awaiting Client</span>';
+    const label = j.clientTruckReply ? '🚫 Vehicle Unavailable — Awaiting Installer' : '🚫 Vehicle Unavailable — Awaiting Client';
+    return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">' + label + '</span>';
   }
-
-  // Problem reports — uniform, differentiated by checkpoint
   if (j.problemReport?.status === 'open') {
     const type = j.problemReport.checkpoint === 'documents' ? 'Document' : 'System';
     return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">⚠ ' + type + ' Problem — Awaiting Installer</span>';
   }
-
-  // Reschedule — uniform, show whose turn it is
   if (j.rescheduleProposal?.status === 'pending') {
     const lr = j.rescheduleThread?.[j.rescheduleThread.length - 1]?.role;
     const clientTurn = !lr || lr === 'installer';
@@ -307,7 +304,6 @@ function getJobBadge(j) {
       ? '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">↺ Reschedule — Awaiting Client</span>'
       : '<span class="badge pulse" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">↺ Reschedule — Awaiting Installer</span>';
   }
-
   return badgeHTML(j.status);
 }
 function progressOf(cl){if(!cl)return{done:0,total:0};const all=cl.flatMap(s=>s.steps.filter(x=>!x.skipped));return{done:all.filter(x=>x.done).length,total:all.length};}
@@ -399,16 +395,22 @@ function renderJobsTab(){
     const pct=prog.total?Math.round(prog.done/prog.total*100):0;
     return `<div class="job-card" onclick="openDetail('${j.id}')" style="${jobUrgencyStyle(j)}">
       <div class="job-card-top">
-        <span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}
-
+        <div class="job-card-left">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="job-id">${j.id}</span>
+            <span class="job-name">${j.name||j.location}</span>
+          </div>
+          <div class="job-meta" style="margin-top:4px">
+            <span>🚛 ${j.truck||'TBC'}</span>
+            <span>🔧 ${j.serviceType||'Installation'}</span>
+            <span>📍 ${j.location}</span>
+            <span>📅 ${j.date}${j.time?' '+j.time:''}</span>
+            <span>👤 ${j.clientCompanyName||j.clientName||'—'}</span>
+            <span>🔩 ${j.technician||'Unassigned'}</span>
+          </div>
+        </div>
+        <div class="job-card-badge">${getJobBadge(j)}</div>
       </div>
-      <div class="job-meta">
-        <span>📍 ${j.location}</span><span>🔧 ${j.technician}</span>
-        <span>📅 ${j.date}${j.time?' '+j.time:''}</span><span>🌍 ${j.country}</span>
-        <span>🔧 ${j.serviceType||'Installation'}</span>
-        ${j.completionDate?`<span style="color:#34d399">✓ ${j.completionDate}</span>`:''}
-      </div>
-      ${j.jobStatusNote?`<div style="margin-top:5px;font-size:11px;color:#94a3b8;font-style:italic">ℹ ${j.jobStatusNote}</div>`:''}
       <div class="progress-wrap" style="margin-top:8px">
         <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${pct===100?'#34d399':'#38bdf8'}"></div></div>
         <span class="progress-label">${prog.done}/${prog.total}</span>
@@ -459,6 +461,7 @@ function openDetail(id){
   renderModalContent(id);
 }
 function closeDetail(){
+  window._editUnlocked = {};
   document.getElementById('detail-modal').classList.remove('open');
   currentJobId=null;
   loadAll(); // refresh badges on close
@@ -495,6 +498,31 @@ async function adminSaveStepNote(jobId, secId, stepId) {
   renderModalContent(jobId);
 }
 
+
+async function forceComplete(jobId) {
+  const reason = prompt('Reason for force-completing this job (optional):');
+  if (reason === null) return; // cancelled
+  if (!confirm('Force-complete ' + jobId + '? This will mark all steps done and move the job to Completed.')) return;
+  const res = await apiFetch(capi('/jobs/'+jobId+'/force-complete'), {method:'POST', body:JSON.stringify({reason})});
+  const data = await res.json();
+  if (data.ok) { loadAll(); closeDetail(); }
+  else alert(data.error || 'Error');
+}
+
+async function adminAssignInstaller(jobId) {
+  const sel = document.getElementById('assign-sel-'+jobId);
+  const technician = sel?.value;
+  if (!technician) { alert('Please select an installer'); return; }
+  const res = await apiFetch(capi('/jobs/'+jobId+'/assign'), {method:'POST', body:JSON.stringify({technician})});
+  const data = await res.json();
+  if (data.ok) {
+    const jobRes = await apiFetch(capi('/jobs/'+jobId));
+    const updated = await jobRes.json();
+    const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+    renderModalContent(jobId); loadAll();
+  } else alert(data.error||'Error');
+}
+
 function renderModalContent(id){
   const j=jobs.find(x=>x.id===id);
   if(!j) return;
@@ -509,7 +537,7 @@ function renderModalContent(id){
   const checklistHTML=j.checklist.map((sec,si)=>{
     const allDone=sec.steps.every(s=>s.done||s.skipped);
     const anyDone=sec.steps.some(s=>s.done);
-    const isLocked = j.clientConfirmed && !document.getElementById('edit-unlocked-'+j.id);
+    const isLocked = j.clientConfirmed && !(window._editUnlocked && window._editUnlocked[j.id]);
     const stepsHTML=sec.steps.map(step=>{
       if(step.skipped) return `<div class="step-row skipped"><div class="step-check-admin"></div><span class="step-label" style="color:#475569">SKIPPED: ${step.label}</span></div>`;
       // Multi-image step
@@ -577,18 +605,37 @@ function renderModalContent(id){
   const rescheduleHTML='';
 
   // Inline edit fields
-  const editHTML = j.clientConfirmed ? `
+    const _jMeta = [
+    ['Job Number', j.id],
+    ['Location', j.location],
+    ['Vehicle', j.truck||'—'],
+    ['Service Type', j.serviceType||'Installation'],
+    ['Unit Type', j.serviceType==='Inspection'?'N/A':j.unitType||'Basic'],
+    ['Country', j.country||'—'],
+    ['Date', j.date||'—'],
+    ['Time', j.time||'—'],
+    ['Technician', j.technician||'Unassigned'],
+    ['Client', j.clientCompanyName||j.clientName||'—'],
+  ];
+  const _infoHTML = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">📋 Job Details</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${_jMeta.map(([k,v])=>`<div><div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em">${k}</div><div style="font-size:13px;color:#e2e8f0;margin-top:2px">${v}</div></div>`).join('')}
+    </div>
+  </div>`;
+
+  const editHTML = j.clientConfirmed ? (_infoHTML + `
     <div style="background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:14px 16px;margin-bottom:14px">
       <div style="font-size:13px;color:#34d399;font-weight:600;margin-bottom:4px">✓ Job Completed</div>
-      <div style="font-size:12px;color:#475569;margin-bottom:10px">This job is complete. Click Edit to make changes.</div>
-      <button onclick="this.closest('div').innerHTML='';const _m=document.createElement('span');_m.id='edit-unlocked-${j.id}';_m.style.display='none';document.getElementById('modal-job-content').appendChild(_m);" style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 14px;color:#94a3b8;font-size:12px;cursor:pointer">✏️ Edit Job Details</button>
-    </div>` :
+      <div style="font-size:12px;color:#475569;margin-bottom:10px">This job is complete. Click Edit to unlock changes.</div>
+      <button onclick="window._editUnlocked=window._editUnlocked||{};window._editUnlocked['${j.id}']=true;renderModalContent('${j.id}');" style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 14px;color:#94a3b8;font-size:12px;cursor:pointer">✏️ Edit Job Details</button>
+    </div>`) :
   `
     <div class="card" style="margin-bottom:14px">
       <div class="card-title">✏️ Edit Job Details</div>
       <div class="form-grid">
         <div class="form-field">
-          <label class="form-label">Truck No.</label>
+          <label class="form-label">Vehicle No.</label>
           <input class="form-input" value="${j.truck||''}" onchange="adminEdit('${j.id}','truck',this.value)" style="font-size:12px;padding:7px 10px"/>
         </div>
         <div class="form-field">
@@ -654,7 +701,19 @@ function renderModalContent(id){
       ✓ Client confirmed system OK — ${j.clientConfirmedAt}
     </div>` : '';
   document.getElementById('modal-job-content').innerHTML=`
-    ${adminProblemBanner}${adminConfirmedBanner}
+    ${adminProblemBanner}
+    ${j.needsAssignment && !j.technician ? `
+    <div style="background:#1e1130;border:2px solid #c084fc;border-radius:12px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:14px;color:#c084fc;margin-bottom:8px">⚠ No Installer Assigned</div>
+      <div style="font-size:13px;color:#94a3b8;margin-bottom:10px">This job needs an installer. Select one from your team:</div>
+      <div style="display:flex;gap:8px">
+        <select id="assign-sel-${j.id}" class="form-input" style="flex:1;font-size:13px">
+          <option value="">Select installer…</option>
+          ${Object.values(users).filter(u=>u.role==='installer').map(u=>`<option value="${u.installer||u.name}">${u.name}${u.companyName?' ('+u.companyName+')':''} — ${(u.countries||[]).join(', ')||'No countries'}</option>`).join('')}
+        </select>
+        <button onclick="adminAssignInstaller('${j.id}')" class="btn-primary" style="font-size:13px;padding:8px 16px">Assign</button>
+      </div>
+    </div>` : ''}${adminConfirmedBanner}
     <div style="margin-bottom:12px;padding:8px 12px;background:#0c1a2a;border-radius:8px;font-size:12px;color:#64748b">
       👤 Assigned to <b style="color:#f1f5f9">${j.clientName||'David'}</b> &nbsp;·&nbsp; 🔧 ${j.technician||'TBC'} &nbsp;·&nbsp; 🌍 ${j.country||''}
     </div>

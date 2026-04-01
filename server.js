@@ -104,7 +104,7 @@ function buildChecklist(job) {
 
 // ── Job status ────────────────────────────────────────────────────────────────
 function computeStatus(job) {
-  if (job.truckUnavailable)   return 'Truck Unavailable';
+  if (job.truckUnavailable)   return 'Vehicle Unavailable';
   if (job.clientConfirmed)    return 'Completed';
   if (job.docCheckPending)    return 'Awaiting Document Check';
   if (job.systemCheckPending) return 'Awaiting System Check';
@@ -506,6 +506,27 @@ app.put('/api/:companyId/users/:username', requireCompanyAuth('admin'), (req, re
     delete users[oldUsername];
   }
   saveCompanyUsers(cid, users);
+  // Update matching jobs if client or installer name/company changed
+  const jobs = getCompanyJobs(cid);
+  let jobsChanged = false;
+  jobs.forEach(job => {
+    if (users[newUsername || oldUsername]?.role === 'client') {
+      const clientId = users[newUsername || oldUsername]?.clientId;
+      if (job.clientId === clientId) {
+        if (req.body.name) job.clientName = req.body.name;
+        if (req.body.companyName) job.clientCompanyName = req.body.companyName;
+        jobsChanged = true;
+      }
+    }
+    if (users[newUsername || oldUsername]?.role === 'installer') {
+      const instName = users[newUsername || oldUsername]?.installer || users[newUsername || oldUsername]?.name;
+      if (job.technician === instName || (req.body.name && job.technician === oldUsername)) {
+        if (req.body.name) job.technician = req.body.installer || req.body.name;
+        jobsChanged = true;
+      }
+    }
+  });
+  if (jobsChanged) saveCompanyJobs(cid, jobs);
   res.json({ ok:true });
 });
 
@@ -1283,6 +1304,27 @@ app.get('/r2/*', async (req, res) => {
   // Fallback: redirect to old system if configured
   if (OLD_SYSTEM_URL) return res.redirect(OLD_SYSTEM_URL + '/r2/' + key);
   res.status(404).json({ error: 'File not found' });
+});
+
+
+// ── Admin force-complete ──────────────────────────────────────────────────────
+app.post('/api/:companyId/jobs/:id/force-complete', requireCompanyAuth('admin'), (req, res) => {
+  const cid = req.params.companyId;
+  const job = jobAction(cid, req.params.id, (job) => {
+    // Tick all checklist steps
+    (job.checklist||[]).forEach(sec => sec.steps.forEach(step => { step.done = true; }));
+    job.forceCompleted      = true;
+    job.forceCompletedBy    = req.user.name || 'Admin';
+    job.forceCompletedAt    = new Date().toLocaleString();
+    job.clientConfirmed     = true;
+    job.clientConfirmedAt   = new Date().toLocaleString();
+    job.completionDate      = new Date().toISOString().slice(0,10);
+    job.status              = 'Completed';
+    addActivity(job, req.user.name, 'admin', '⚠ Job force-completed by admin', req.body.reason||'');
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  broadcast(cid, { type:'refresh' });
+  res.json({ ok:true });
 });
 
 // ── PAGE ROUTES ───────────────────────────────────────────────────────────────
