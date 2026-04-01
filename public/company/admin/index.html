@@ -189,7 +189,7 @@ async function checkAuth() {
   if (el_co) el_co.textContent = _leftComp || 'Company';
   if (el_pe) el_pe.textContent = _name;
   if (el_or) el_or.textContent = 'A ' + (_centreComp||'—') + ' Service';
-  if (el_ll) el_ll.textContent = (_auth?.companyName||'?')[0].toUpperCase();perCase();
+  if (el_ll) el_ll.textContent = (_auth?.companyName||'?')[0].toUpperCase();
   loadAll();
   startSSE();
   setInterval(checkUnread,30000);
