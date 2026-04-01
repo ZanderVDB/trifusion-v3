@@ -236,21 +236,29 @@ function badgeHTML(s) {
 
 function getJobBadge(j) {
   if (j.clientConfirmed) return badgeHTML('Completed');
+
+  // Truck unavailable — uniform across all portals
   if (j.truckUnavailable) {
     return j.clientTruckReply
-      ? '<span class="badge pulse" style="background:#0c2a3a;color:#38bdf8;border:1px solid #38bdf8">💬 Client Replied</span>'
-      : '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable</span>';
+      ? '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable — Awaiting Installer</span>'
+      : '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable — Awaiting Client</span>';
   }
-  if (j.problemReport?.status==='open')  return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">⚠ Problem Reported</span>';
-  // problem-fixed now goes straight to client, no awaiting admin
-  const rp = j.rescheduleProposal?.status==='pending';
-  if (rp) {
-    const lr = j.rescheduleThread?.[j.rescheduleThread.length-1]?.role;
-    const ct = !lr || lr==='installer';
-    return ct
-      ? '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">↺ Waiting for Client</span>'
-      : '<span class="badge pulse" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">⏰ Client Replied — Confirm Time</span>';
+
+  // Problem reports — uniform, differentiated by checkpoint
+  if (j.problemReport?.status === 'open') {
+    const type = j.problemReport.checkpoint === 'documents' ? 'Document' : 'System';
+    return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">⚠ ' + type + ' Problem — Awaiting Installer</span>';
   }
+
+  // Reschedule — uniform, show whose turn it is
+  if (j.rescheduleProposal?.status === 'pending') {
+    const lr = j.rescheduleThread?.[j.rescheduleThread.length - 1]?.role;
+    const clientTurn = !lr || lr === 'installer';
+    return clientTurn
+      ? '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">↺ Reschedule — Awaiting Client</span>'
+      : '<span class="badge pulse" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">↺ Reschedule — Awaiting Installer</span>';
+  }
+
   return badgeHTML(j.status);
 }
 function progressOf(cl){if(!cl)return{done:0,total:0};const all=cl.flatMap(s=>s.steps.filter(x=>!x.skipped));return{done:all.filter(x=>x.done).length,total:all.length};}

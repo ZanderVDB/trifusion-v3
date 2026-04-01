@@ -287,21 +287,29 @@ function badgeHTML(s) {
 }
 function getJobBadge(j) {
   if (j.clientConfirmed) return badgeHTML('Completed');
+
+  // Truck unavailable — uniform across all portals
   if (j.truckUnavailable) {
     return j.clientTruckReply
-      ? '<span class="badge" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc30">↺ Waiting for Installer Response</span>'
-      : '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable</span>';
+      ? '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable — Awaiting Installer</span>'
+      : '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable — Awaiting Client</span>';
   }
-  if (j.problemReport?.status==='open') return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">⚠ Problem Reported</span>';
-  if (j.problemReport?.status==='fixed') return '<span class="badge" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">🔧 Awaiting Admin Review</span>';
-  const rp = j.rescheduleProposal?.status === 'pending';
-  if (rp) {
-    const lastRole = j.rescheduleThread?.[j.rescheduleThread.length-1]?.role;
-    const myTurn = !lastRole || lastRole === 'installer';
-    return myTurn
-      ? '<span class="badge pulse" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">⏰ Confirm New Time</span>'
-      : '<span class="badge" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc30">↺ Waiting for Installer</span>';
+
+  // Problem reports — uniform, differentiated by checkpoint
+  if (j.problemReport?.status === 'open') {
+    const type = j.problemReport.checkpoint === 'documents' ? 'Document' : 'System';
+    return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">⚠ ' + type + ' Problem — Awaiting Installer</span>';
   }
+
+  // Reschedule — uniform, show whose turn it is
+  if (j.rescheduleProposal?.status === 'pending') {
+    const lr = j.rescheduleThread?.[j.rescheduleThread.length - 1]?.role;
+    const clientTurn = !lr || lr === 'installer';
+    return clientTurn
+      ? '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">↺ Reschedule — Awaiting Client</span>'
+      : '<span class="badge pulse" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">↺ Reschedule — Awaiting Installer</span>';
+  }
+
   return badgeHTML(j.status);
 }
 

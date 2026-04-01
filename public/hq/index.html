@@ -197,11 +197,22 @@ const STATUS_META = {
 function badge(s){const m=STATUS_META[s]||{color:'#64748b',bg:'#1e293b'};return`<span style="background:${m.bg};color:${m.color};border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">${s}</span>`;}
 function jobBadge(j){
   if(j.clientConfirmed) return badge('Completed');
-  if(j.truckUnavailable) return j.clientTruckReply?'<span style="background:#0c2a3a;color:#38bdf8;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">💬 Client Replied</span>':'<span style="background:#2a0f0f;color:#f87171;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🚫 Truck Unavailable</span>';
-  if(j.problemReport?.status==='open') return '<span style="background:#2a0f0f;color:#f87171;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">⚠ Problem Reported</span>';
-  if(j.problemReport?.status==='fixed') return '<span style="background:#451a00;color:#fbbf24;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🔧 Awaiting Admin Review</span>';
-  const rp=j.rescheduleProposal?.status==='pending';
-  if(rp){const lr=j.rescheduleThread?.[j.rescheduleThread.length-1]?.role;const ct=!lr||lr==='installer';return ct?'<span style="background:#1e1130;color:#c084fc;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">↺ Installer→Client</span>':'<span style="background:#451a00;color:#fbbf24;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">↺ Client→Installer</span>';}
+  if(j.truckUnavailable) return j.clientTruckReply
+    ? '<span style="background:#2a0f0f;color:#f87171;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🚫 Truck Unavailable — Awaiting Installer</span>'
+    : '<span style="background:#2a0f0f;color:#f87171;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">🚫 Truck Unavailable — Awaiting Client</span>';
+  if(j.problemReport?.status==='open'){
+    const t=j.problemReport.checkpoint==='documents'?'Document':'System';
+    return '<span style="background:#2a0f0f;color:#f87171;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">⚠ '+t+' Problem — Awaiting Installer</span>';
+  }
+  if(j.rescheduleProposal?.status==='pending'){
+    const lr=j.rescheduleThread?.[j.rescheduleThread.length-1]?.role;
+    const ct=!lr||lr==='installer';
+    return ct
+      ?'<span style="background:#1e1130;color:#c084fc;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">↺ Reschedule — Awaiting Client</span>'
+      :'<span style="background:#451a00;color:#fbbf24;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:600">↺ Reschedule — Awaiting Installer</span>';
+  }
+  return badge(j.status);
+}
   return badge(j.status);
 }
 
