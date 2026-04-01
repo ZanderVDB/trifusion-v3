@@ -1031,6 +1031,8 @@ async function saveBranding() {
       const llEl   = document.getElementById('topbar-logo-letter');
       if (compEl) compEl.textContent = companyName;
       if (orgEl)  orgEl.textContent  = 'A ' + companyName + ' Service';
+      const peEl = document.getElementById('topbar-person');
+      if (peEl) peEl.textContent = auth?.name || '';
       if (llEl && !_settings.branding?.logoUrl) llEl.textContent = companyName[0].toUpperCase();
     }
     setTimeout(()=>msg.textContent='',2000);

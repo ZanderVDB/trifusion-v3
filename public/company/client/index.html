@@ -220,7 +220,7 @@ async function checkAuth() {
   // Set topbar
   const _auth = getAuth();
   const _name = _auth?.name || 'Client';
-  const _comp = _auth?.clientCompanyName || _auth?.companyName || '';
+  const _comp = _auth?.companyName || '';
   const el_co = document.getElementById('topbar-company');
   const el_pe = document.getElementById('topbar-person');
   const el_or = document.getElementById('topbar-org');
