@@ -180,7 +180,7 @@ async function checkAuth() {
   if (el_co) el_co.textContent = _leftComp || 'Company';
   if (el_pe) el_pe.textContent = _name;
   if (el_or) el_or.textContent = 'A ' + (_centreComp||'—') + ' Service';
-  if (el_ll) el_ll.textContent = (_auth?.installerCompanyName||_auth?.name||' ')[0].toUpperCase();
+  if (el_ll) el_ll.textContent = (_auth?.installerCompanyName||' ')[0].toUpperCase();
   loadJobs();
   startSSE();
 }
@@ -314,15 +314,7 @@ ${getJobBadge(j)}
         <span>🚛 ${j.truck||'TBC'}</span>
         <span>🔧 ${j.serviceType||'Installation'}</span>
       </div>
-      ${(()=>{
-        if(j.clientConfirmed) return '<div style="margin-top:6px;font-size:11px;padding:4px 10px;border-radius:6px;background:#0a2a1e;border:1px solid #34d399;color:#34d399;display:inline-block">🎉 Job Fully Complete</div>';
-        if(j.truckUnavailable) return '<div style="margin-top:6px;font-size:11px;padding:4px 10px;border-radius:6px;background:#2a0f0f;border:1px solid #f87171;color:#f87171;display:inline-block">✕ Truck Unavailable</div>';
-        if(j.problemReport) return '<div style="margin-top:6px;font-size:11px;padding:4px 10px;border-radius:6px;background:#2a0f0f;border:1px solid #f8717140;color:#f87171;display:inline-block">⚠ Problem reported by client</div>';
-        if(j.systemOk) return '<div style="margin-top:6px;font-size:11px;padding:4px 10px;border-radius:6px;background:#0a2a1e;border:1px solid #34d39940;color:#4ade80;display:inline-block">✅ System confirmed by client</div>';
-        return '';
-      })()}
-      ${j.jobStatusNote&&!j.problemReport?`<div style="margin-top:6px;font-size:11px;padding:4px 10px;border-radius:6px;background:#1e293b;color:#94a3b8;display:inline-block">ℹ ${j.jobStatusNote}</div>`:''}
-      ${isClientCounter?'<div style="margin-top:6px;font-size:11px;padding:4px 10px;border-radius:6px;background:#0c2a3a;color:#38bdf8;display:inline-block">💬 David suggested alternative — tap to respond</div>':''}
+
       <div class="progress-wrap" style="margin-top:8px">
         <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${pct===100?'#34d399':'#38bdf8'}"></div></div>
         <span class="progress-label">${prog.done}/${prog.total}</span>

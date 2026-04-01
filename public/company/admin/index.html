@@ -312,14 +312,18 @@ function progressOf(cl){if(!cl)return{done:0,total:0};const all=cl.flatMap(s=>s.
 
 
 function jobUrgencyStyle(job){
-  if(job.status==='Completed') return '';
+  if(job.status==='Completed' || job.clientConfirmed) return '';
   if(!job.date || !job.time) return '';
   const scheduled = new Date(job.date + 'T' + job.time);
   const now = new Date();
   const diffMins = (scheduled - now) / 60000;
-  if(diffMins < 0 && diffMins > -120) return 'border-color:rgba(251,146,60,.7);box-shadow:0 0 0 1px rgba(251,146,60,.3);'; // happening now / just happened
-  if(diffMins >= 0 && diffMins <= 60) return 'border-color:rgba(251,191,36,.8);box-shadow:0 0 0 1px rgba(251,191,36,.3);'; // within 1 hour
-  if(diffMins > 60 && diffMins <= 180) return 'border-color:rgba(56,189,248,.5);box-shadow:0 0 0 1px rgba(56,189,248,.2);'; // within 3 hours
+  const serviceComplete = job.checklist?.find(s=>s.id==='service')?.steps.find(s=>s.id==='service_complete')?.done;
+  // Red: it's time (past scheduled) and not yet complete
+  if(diffMins <= 0 && !serviceComplete) return 'border-color:rgba(248,113,113,.9);box-shadow:0 0 0 2px rgba(248,113,113,.3);';
+  // Orange: within 1 hour
+  if(diffMins > 0 && diffMins <= 60) return 'border-color:rgba(251,146,60,.8);box-shadow:0 0 0 1px rgba(251,146,60,.3);';
+  // Yellow: within 2 hours
+  if(diffMins > 60 && diffMins <= 120) return 'border-color:rgba(251,191,36,.8);box-shadow:0 0 0 1px rgba(251,191,36,.3);';
   return '';
 }
 function renderOverview(){

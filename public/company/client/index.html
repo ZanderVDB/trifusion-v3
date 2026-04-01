@@ -513,7 +513,7 @@ function renderActionCard(j) {
   // Truck unavailable - show reply UI
   if (j.truckUnavailable) return `
     <div class="card" style="margin-top:14px;border:2px solid #f87171;background:#0a0303">
-      <div style="font-weight:700;font-size:15px;color:#f87171;margin-bottom:6px">🚫 Truck Unavailable</div>
+      <div style="font-weight:700;font-size:15px;color:#f87171;margin-bottom:6px">${j.clientTruckReply ? "🚫 Truck Unavailable — Awaiting Installer" : "🚫 Truck Unavailable — Awaiting Client"}</div>
       <div style="font-size:13px;color:#fca5a5;margin-bottom:4px">"${j.truckUnavailableReason}"</div>
       <div style="font-size:11px;color:#475569;margin-bottom:12px">Reported by installer</div>
       ${j.clientTruckReply?`<div style="padding:8px 10px;background:#0c2a3a;border-radius:8px;font-size:13px;color:#bae6fd;margin-bottom:8px">Your reply: "${j.clientTruckReply.message}"</div>`:`
