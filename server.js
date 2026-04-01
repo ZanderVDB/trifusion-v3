@@ -34,12 +34,16 @@ function saveCompanies(data) {
   writeJSON(path.join(DB_DIR, 'superadmin', 'companies.json'), data);
 }
 function getCompanyUsers(cid) {
+  const dir = companyDir(cid);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return readJSON(companyFile(cid, 'users.json'), {});
 }
 function saveCompanyUsers(cid, data) {
   writeJSON(companyFile(cid, 'users.json'), data);
 }
 function getCompanyJobs(cid) {
+  const dir = companyDir(cid);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return readJSON(companyFile(cid, 'jobs.json'), []);
 }
 function saveCompanyJobs(cid, jobs) {
@@ -610,6 +614,7 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
   const clientName = clientUser?.name || '';
   const clientCompanyName = clientUser?.companyName || clientUser?.name || '';
 
+  console.log(`[JOB CREATE] cid=${cid} country=${country} serviceType=${serviceType} clientId=${req.user.clientId||'?'} effectiveClientId=${effectiveClientId}`);
   const id  = nextJobId(cid);
   const job = {
     id, location, truck:truck||'',
@@ -630,6 +635,7 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
   const jobs = getCompanyJobs(cid);
   jobs.push(job);
   saveCompanyJobs(cid, jobs);
+  console.log(`[JOB SAVED] ${id} technician=${job.technician||'UNASSIGNED'} needsAssignment=${job.needsAssignment}`);
   addMessage(cid, id, 'job_created', `New job created: ${job.location} (${job.country}) for ${job.clientCompanyName||job.clientName}`, 'system');
   broadcast(cid, { type:'refresh' });
   res.json({ ok:true, id });

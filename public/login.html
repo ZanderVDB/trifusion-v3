@@ -85,7 +85,8 @@ async function doLogin() {
     setAuth({ token:data.token, role:data.role, name:data.name||username, username,
               companyId:data.companyId||null, companyName:data.companyName||null,
               installer:data.installer||null, clientId:data.clientId||null,
-              clientCompanyName:data.clientCompanyName||null });
+              clientCompanyName:data.clientCompanyName||null,
+              installerCompanyName:data.installerCompanyName||null });
     redirectUser(data);
   } catch(e) {
     errEl.textContent = 'Could not connect to server.';

@@ -628,10 +628,7 @@ async function clientSystemOk(jobId){
   await apiFetch(capi('/jobs/'+jobId+'/system-ok'),{method:'POST'});
   loadJobs();
 }
-function clientSystemProblemShow(jobId) {
-  const el = document.getElementById('sysprob-'+jobId);
-  if (el) el.style.display = el.style.display==='none' ? 'block' : 'none';
-}
+// clientSystemProblemShow defined above
 async function clientSystemProblemSubmit(jobId) {
   const msg = document.getElementById('sysprob-text-'+jobId)?.value.trim();
   if (!msg) { alert('Please describe the problem first.'); return; }
@@ -669,12 +666,7 @@ async function clientTruckReply(jobId) {
 function clientSystemProblemShow(jobId){
   document.getElementById('sysprob-'+jobId).style.display='block';
 }
-async function clientSystemProblemSubmit(jobId){
-  const reason=document.getElementById('sysprob-text-'+jobId)?.value.trim();
-  if(!reason){alert('Please describe the issue.');return;}
-  await apiFetch(capi('/jobs/'+jobId+'/system-problem'),{method:'POST',body:JSON.stringify({reason})});
-  loadJobs();
-}
+// clientSystemProblemSubmit defined above
 
 async function saveTruck(jobId){
   const val = document.getElementById('truck-edit-'+jobId)?.value.trim();

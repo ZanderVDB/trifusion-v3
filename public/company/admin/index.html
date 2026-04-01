@@ -106,8 +106,6 @@
       </select>
       <select id="filter-client" class="form-input" style="width:140px" onchange="renderJobsTab()">
         <option value="">All Clients</option>
-        <option value="david">David</option>
-        <option value="natan">Natan</option>
       </select>
       <select id="filter-installer" class="form-input" style="width:140px" onchange="renderJobsTab()">
         <option value="">All Installers</option>
@@ -212,6 +210,19 @@ async function loadAll(){
     jobs = Array.isArray(data) ? data : [];
   } catch(e) { console.error('loadJobs error',e); return; }
   document.getElementById('tc-jobs').textContent=jobs.length;
+  // Rebuild client filter dynamically
+  const _fcEl = document.getElementById('filter-client');
+  if (_fcEl) {
+    const _curVal = _fcEl.value;
+    const _clients = [...new Set(jobs.map(j=>j.clientId).filter(Boolean))];
+    _fcEl.innerHTML = '<option value="">All Clients</option>' +
+      _clients.map(id => {
+        const j = jobs.find(x=>x.clientId===id);
+        const name = j?.clientName||j?.clientCompanyName||id;
+        return `<option value="${id}">${name}</option>`;
+      }).join('');
+    if (_curVal) _fcEl.value = _curVal;
+  }
   // Always refresh overview stats so attention list stays current
   renderOverview();
   if(currentJobId){
