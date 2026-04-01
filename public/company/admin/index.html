@@ -38,6 +38,7 @@
 .topbar-service { font-size:12px; font-weight:600; color:#94a3b8; letter-spacing:.04em; }
 .topbar-portal  { font-size:10px; color:#475569; letter-spacing:.06em; text-transform:uppercase; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div class="topbar">
@@ -1310,6 +1311,180 @@ async function submitAddRecord() {
   btn.disabled = false; btn.textContent = '✓ Save Completed Record';
 }
 
+
+// ── Bulk Import from CSV/Excel ─────────────────────────────────────────────
+const AR_COLUMNS = ['location','truck','installer','client','serviceType','unitType','date','time','completion'];
+const AR_COL_LABELS = ['Location','Truck','Installer','Client','Service Type','Unit Type','Service Date','Time','Completion Date'];
+
+function arHandleImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      let rows = [];
+      if (file.name.endsWith('.csv')) {
+        // Parse CSV
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/).filter(l=>l.trim());
+        const headers = lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,'').toLowerCase());
+        rows = lines.slice(1).map(line=>{
+          const vals = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|(?<=,)$|^(?=,))/g) || line.split(',');
+          const clean = vals.map(v=>(v||'').trim().replace(/^"|"$/g,''));
+          const row = {};
+          headers.forEach((h,i) => row[h] = clean[i]||'');
+          return row;
+        });
+      } else {
+        // Parse Excel with SheetJS
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, {type:'array', cellDates:true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+        if (!raw.length) return;
+        const headers = raw[0].map(h=>String(h).trim().toLowerCase());
+        rows = raw.slice(1).filter(r=>r.some(v=>v)).map(r=>{
+          const row = {};
+          headers.forEach((h,i) => {
+            let val = r[i];
+            // Handle Excel date objects
+            if (val instanceof Date) {
+              val = val.toISOString().slice(0,10);
+            } else {
+              val = String(val||'').trim();
+            }
+            row[h] = val;
+          });
+          return row;
+        });
+      }
+
+      // Normalise column names (flexible matching)
+      const norm = rows.map(raw=>{
+        const find = (keys) => {
+          for (const k of Object.keys(raw)) {
+            if (keys.some(q => k.includes(q))) return raw[k];
+          }
+          return '';
+        };
+        return {
+          location:    find(['location','loc','address','site']),
+          truck:       find(['truck','vehicle','reg']),
+          installer:   find(['installer','technician','tech']),
+          client:      find(['client','company']),
+          serviceType: find(['service type','servicetype','service','type']),
+          unitType:    find(['unit type','unittype','unit']),
+          date:        find(['service date','servicedate','date','scheduled']),
+          time:        find(['time']),
+          completion:  find(['completion','completed','finish']),
+        };
+      }).filter(r=>r.location);
+
+      if (!norm.length) {
+        document.getElementById('ar-import-preview').innerHTML = '<div style="color:#f87171;font-size:13px">No valid rows found. Make sure the file has a header row with column names matching: Location, Truck, Installer, Client, Service Type, Unit Type, Service Date, Time, Completion Date.</div>';
+        return;
+      }
+
+      arShowImportPreview(norm);
+    } catch(err) {
+      document.getElementById('ar-import-preview').innerHTML = '<div style="color:#f87171;font-size:13px">Could not read file: ' + err.message + '</div>';
+    }
+  };
+  if (file.name.endsWith('.csv')) reader.readAsText(file);
+  else reader.readAsArrayBuffer(file);
+}
+
+function arShowImportPreview(rows) {
+  window._arImportRows = rows;
+  const preview = document.getElementById('ar-import-preview');
+  const tableRows = rows.map((r,i) => `
+    <tr style="border-bottom:1px solid #1e293b">
+      <td style="padding:5px 8px;font-size:11px;color:#64748b">${i+1}</td>
+      <td style="padding:5px 8px;font-size:12px;color:#e2e8f0">${r.location}</td>
+      <td style="padding:5px 8px;font-size:12px;color:#94a3b8">${r.truck||'—'}</td>
+      <td style="padding:5px 8px;font-size:12px;color:#94a3b8">${r.installer||'—'}</td>
+      <td style="padding:5px 8px;font-size:12px;color:#94a3b8">${r.serviceType||'Installation'}</td>
+      <td style="padding:5px 8px;font-size:12px;color:#94a3b8">${r.date||'—'}</td>
+    </tr>`).join('');
+
+  preview.innerHTML = `
+    <div style="font-size:13px;color:#34d399;margin-bottom:8px">✓ ${rows.length} row${rows.length===1?'':'s'} ready to import</div>
+    <div style="overflow-x:auto;max-height:200px;overflow-y:auto;border-radius:8px;border:1px solid #1e293b">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#1e293b">
+            <th style="padding:5px 8px;font-size:10px;color:#64748b;text-align:left">#</th>
+            <th style="padding:5px 8px;font-size:10px;color:#64748b;text-align:left">Location</th>
+            <th style="padding:5px 8px;font-size:10px;color:#64748b;text-align:left">Truck</th>
+            <th style="padding:5px 8px;font-size:10px;color:#64748b;text-align:left">Installer</th>
+            <th style="padding:5px 8px;font-size:10px;color:#64748b;text-align:left">Type</th>
+            <th style="padding:5px 8px;font-size:10px;color:#64748b;text-align:left">Date</th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button onclick="arRunImport()" style="background:#14532d;border:1px solid #34d399;border-radius:7px;padding:8px 18px;color:#86efac;font-size:13px;font-weight:600;cursor:pointer;flex:2">
+        ✓ Import ${rows.length} Job${rows.length===1?'':'s'}
+      </button>
+      <button onclick="document.getElementById('ar-import-preview').innerHTML='';window._arImportRows=null;document.getElementById('ar-import-file').value=''" 
+        style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:8px 14px;color:#94a3b8;font-size:13px;cursor:pointer">
+        Clear
+      </button>
+    </div>`;
+}
+
+async function arRunImport() {
+  const rows = window._arImportRows;
+  if (!rows?.length) return;
+  const preview = document.getElementById('ar-import-preview');
+  preview.innerHTML = '<div style="color:#94a3b8;font-size:13px">⏳ Importing ' + rows.length + ' jobs…</div>';
+
+  // Load users for client ID lookup
+  let clientMap = {};
+  try {
+    const users = await apiFetch(capi('/users')).then(r=>r.json());
+    Object.values(users).filter(u=>u.role==='client').forEach(u=>{
+      clientMap[(u.name||'').toLowerCase()] = u.clientId||u.username;
+      clientMap[(u.companyName||'').toLowerCase()] = u.clientId||u.username;
+    });
+  } catch(e) {}
+
+  let ok = 0, failed = 0;
+  for (const row of rows) {
+    // Look up clientId from name/company
+    const clientId = clientMap[(row.client||'').toLowerCase()] || '';
+    const payload = {
+      location:    row.location,
+      truck:       row.truck || '',
+      technician:  row.installer || '',
+      clientId,
+      serviceType: row.serviceType || 'Installation',
+      unitType:    row.unitType || 'Basic',
+      date:        row.date || new Date().toISOString().slice(0,10),
+      time:        row.time || '10:00',
+      completion:  row.completion || row.date || new Date().toISOString().slice(0,10),
+      country:     '', // can be filled in later
+      isRecord:    true
+    };
+    try {
+      const res = await apiFetch(capi('/jobs/record'), {method:'POST', body:JSON.stringify(payload)});
+      const data = await res.json();
+      if (data.ok) ok++; else failed++;
+    } catch(e) { failed++; }
+  }
+
+  preview.innerHTML = `
+    <div style="background:#0a2a1e;border:1px solid #34d399;border-radius:8px;padding:12px 16px">
+      <div style="font-weight:600;color:#34d399;margin-bottom:4px">✓ Import complete</div>
+      <div style="font-size:13px;color:#86efac">${ok} job${ok===1?'':'s'} created successfully${failed?', '+failed+' failed':''}</div>
+    </div>`;
+  window._arImportRows = null;
+  document.getElementById('ar-import-file').value = '';
+  loadAll();
+}
+
 checkAuth();
 </script>
 
@@ -1548,6 +1723,14 @@ checkAuth();
       </div>
     </div>
     <div id="ar-msg" style="font-size:13px;color:#f87171;margin-top:10px"></div>
+    <div style="border-top:1px solid #1e293b;margin-top:16px;padding-top:14px">
+      <div style="font-size:11px;color:#475569;margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Bulk Import</div>
+      <label style="display:inline-flex;align-items:center;gap:8px;background:#1e293b;border:1px solid #334155;border-radius:7px;padding:8px 16px;color:#94a3b8;font-size:13px;cursor:pointer;width:100%;justify-content:center">
+        📥 Import from CSV or Excel
+        <input type="file" id="ar-import-file" accept=".csv,.xlsx,.xls" style="display:none" onchange="arHandleImport(this)"/>
+      </label>
+      <div id="ar-import-preview" style="margin-top:10px"></div>
+    </div>
     <div style="display:flex;gap:10px;margin-top:16px">
       <button class="btn-secondary" style="flex:1" onclick="closeAddRecord()">Cancel</button>
       <button class="btn-primary" style="flex:2" id="ar-submit-btn" onclick="submitAddRecord()">✓ Save Completed Record</button>
