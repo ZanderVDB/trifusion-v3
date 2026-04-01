@@ -182,15 +182,16 @@ async function checkAuth() {
   // Set topbar
   const _auth = getAuth();
   const _name = _auth?.name || 'Admin';
-  const _comp = _auth?.companyName || '';
+  const _leftComp   = _auth?.companyName || '';
+  const _centreComp = _auth?.companyName || '';
   const el_co = document.getElementById('topbar-company');
   const el_pe = document.getElementById('topbar-person');
   const el_or = document.getElementById('topbar-org');
   const el_ll = document.getElementById('topbar-logo-letter');
-  if (el_co) el_co.textContent = _comp || 'Company';
+  if (el_co) el_co.textContent = _leftComp || 'Company';
   if (el_pe) el_pe.textContent = _name;
-  if (el_or) el_or.textContent = 'A ' + (_comp||'—') + ' Service';
-  if (el_ll) el_ll.textContent = (_comp||_name||'?')[0].toUpperCase();
+  if (el_or) el_or.textContent = 'A ' + (_centreComp||'—') + ' Service';
+  if (el_ll) el_ll.textContent = (_auth?.companyName||'?')[0].toUpperCase();perCase();
   loadAll();
   startSSE();
   setInterval(checkUnread,30000);
@@ -964,18 +965,7 @@ async function loadSettings() {
             <input class="form-input" id="s-admin" value="${_settings.adminName||''}"/>
           </div>
         </div>
-        <div class="form-field" style="margin-bottom:16px">
-          <label class="form-label">Company Logo</label>
-          ${b.logoUrl ? `<div style="margin-bottom:12px"><img src="${b.logoUrl}" style="height:60px;border-radius:8px;background:#050b14;padding:4px"/></div>` : '<div style="font-size:12px;color:#475569;margin-bottom:8px">No logo uploaded yet.</div>'}
-          <input type="file" id="s-logo" accept="image/*" style="display:none" onchange="previewLogo(this)"/>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn-secondary" style="font-size:12px" onclick="document.getElementById('s-logo').click()">📷 Upload Logo</button>
-            <div id="logo-preview-wrap" style="display:none">
-              <img id="logo-preview" style="height:50px;border-radius:8px;background:#050b14;padding:4px"/>
-              <button class="btn-primary" style="font-size:12px;margin-left:8px" onclick="saveLogo()">Save Logo</button>
-            </div>
-          </div>
-        </div>
+
         <button class="btn-primary" onclick="saveBranding()">Save Branding</button>
         <div id="s-brand-msg" style="font-size:13px;margin-top:8px"></div>
       </div>
@@ -993,28 +983,7 @@ async function loadSettings() {
   `;
 }
 
-function previewLogo(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('logo-preview').src = e.target.result;
-    document.getElementById('logo-preview-wrap').style.display = 'flex';
-    document.getElementById('logo-preview-wrap').style.alignItems = 'center';
-  };
-  reader.readAsDataURL(file);
-}
 
-async function saveLogo() {
-  const input = document.getElementById('s-logo');
-  if (!input.files[0]) return;
-  const fd = new FormData();
-  fd.append('logo', input.files[0]);
-  const res  = await apiUpload(capi('/settings/logo'), fd);
-  const data = await res.json();
-  if (data.ok) { loadSettings(); }
-  else alert('Upload failed: '+(data.error||'Unknown'));
-}
 
 async function saveBranding() {
   const companyName = document.getElementById('s-company').value.trim();

@@ -169,15 +169,16 @@ async function checkAuth() {
   // Set topbar
   const _auth = getAuth();
   const _name = _auth?.name || 'Installer';
-  const _comp = _auth?.companyName || '';
+  const _leftComp   = _auth?.name || '';
+  const _centreComp = _auth?.companyName || '';
   const el_co = document.getElementById('topbar-company');
   const el_pe = document.getElementById('topbar-person');
   const el_or = document.getElementById('topbar-org');
   const el_ll = document.getElementById('topbar-logo-letter');
-  if (el_co) el_co.textContent = _comp || 'Company';
+  if (el_co) el_co.textContent = _leftComp || 'Company';
   if (el_pe) el_pe.textContent = _name;
-  if (el_or) el_or.textContent = 'A ' + (_comp||'—') + ' Service';
-  if (el_ll) el_ll.textContent = (_comp||_name||'?')[0].toUpperCase();
+  if (el_or) el_or.textContent = 'A ' + (_centreComp||'—') + ' Service';
+  if (el_ll) el_ll.textContent = (_auth?.name||'?')[0].toUpperCase();perCase();
   loadJobs();
   startSSE();
 }
