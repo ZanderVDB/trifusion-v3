@@ -457,17 +457,23 @@ function renderModalContent(id){
       </div>`;
       // Text note step
       if(step.isTextNote) return `<div class="step-row" style="flex-wrap:wrap;gap:6px">
-        <button class="step-check-admin ${step.done?'done':''}" onclick="adminToggleStep('${j.id}','${sec.id}','${step.id}',${!step.done})">
-          ${step.done?'<span style="color:#0a1220;font-size:10px;font-weight:700">✓</span>':''}
+        <button class="step-check-admin ${step.done?'done':step.skipped?'skipped':''}" style="cursor:default;opacity:.7">
+          ${step.done?'<span style="color:#0a1220;font-size:10px;font-weight:700">✓</span>':step.skipped?'<span style="color:#475569;font-size:10px">—</span>':''}
         </button>
-        <span class="step-label ${step.done?'done':''}" style="flex:1">${step.label} <span style="color:#475569;font-size:11px">(optional)</span></span>
-        ${step.noteText?`<div style="width:100%;padding:4px 0 2px 26px;font-size:12px;color:#94a3b8;font-style:italic">"${step.noteText}"</div>`:''}
+        <span class="step-label" style="flex:1">${step.label} <span style="color:#475569;font-size:11px">(optional)</span></span>
+        <div style="width:100%;margin-top:6px">
+          ${step.skipped
+            ? '<div style="padding:8px 10px;background:#1e293b;border-radius:7px;font-size:12px;color:#475569;font-style:italic">Skipped by installer</div>'
+            : step.noteText
+              ? '<div style="padding:10px 12px;background:#0a1220;border:1px solid #1e293b;border-radius:8px;font-size:13px;color:#e2e8f0;line-height:1.5">' + step.noteText + '</div>'
+              : '<div style="padding:8px 10px;background:#1e293b;border-radius:7px;font-size:12px;color:#334155;font-style:italic">No notes added</div>'}
+        </div>
       </div>`;
-      return `<div class="step-row">
+      return `<div class="step-row" style="flex-wrap:wrap;gap:6px">
         <button class="step-check-admin ${step.done?'done':''}" onclick="adminToggleStep('${j.id}','${sec.id}','${step.id}',${!step.done})">
           ${step.done?'<span style="color:#0a1220;font-size:10px;font-weight:700">✓</span>':''}
         </button>
-        <span class="step-label ${step.done?'done':step.alert?'alert':''}">${step.label}</span>
+        <span class="step-label ${step.done?'done':step.alert?'alert':''}" style="flex:1">${step.label}</span>
         ${(step.uploadedFiles&&step.uploadedFiles.length)?`<div style="width:100%;padding:6px 0 2px 0">
             ${step.uploadedFiles.map(f=>`
               <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#0d1829;border-radius:7px;margin-bottom:4px">
@@ -538,14 +544,19 @@ function renderModalContent(id){
   // Notes
   const notesHTML=`
     <div class="card" style="margin-top:14px">
-      <div class="card-title">📝 Notes</div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input class="form-input" id="note-input-${j.id}" placeholder="Add a note…" style="flex:1;font-size:12px;padding:7px 10px" onkeydown="if(event.key==='Enter')adminAddNote('${j.id}')"/>
-        <button class="btn-primary btn-sm" onclick="adminAddNote('${j.id}')">Add</button>
-      </div>
-      ${(j.notes||[]).length?j.notes.map(n=>`<div style="border-top:1px solid #1e293b;padding:8px 0;font-size:12px">
-        <span style="color:#64748b">${n.date} (${n.by||'admin'}) — </span><span style="color:#e2e8f0">${n.text}</span>
-      </div>`).join(''):'<div style="font-size:12px;color:#334155">No notes yet</div>'}
+      <div class="card-title">📝 Admin Notes</div>
+      ${(j.notes||[]).length?j.notes.map((n,ni)=>`
+        <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #1e293b">
+          <div style="flex:1">
+            <div style="font-size:10px;color:#475569;margin-bottom:3px">${n.date} · ${n.by||'Admin'}</div>
+            <div style="font-size:13px;color:#e2e8f0">${n.text}</div>
+          </div>
+          <button onclick="adminDeleteNote('${j.id}',${ni})" style="background:#2a0f0f;border:none;border-radius:4px;color:#f87171;font-size:11px;padding:3px 7px;cursor:pointer;flex-shrink:0">✕</button>
+        </div>`).join(''):''}
+      <textarea id="admin-note-area-${j.id}" rows="2" placeholder="Type a note and press Enter to save…"
+        style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:9px 11px;color:#e2e8f0;font-size:13px;font-family:inherit;resize:vertical"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();adminSaveNote('${j.id}')}"></textarea>
+      <div style="font-size:11px;color:#334155;margin-top:4px">Press Enter to save · Shift+Enter for new line</div>
     </div>`;
 
   const scheduleThread = '';
@@ -619,13 +630,19 @@ async function adminEdit(jobId,field,value){
   loadAll();
 }
 
-async function adminAddNote(jobId){
-  const input=document.getElementById('note-input-'+jobId);
-  const text=input.value.trim();
-  if(!text) return;
-  await apiFetch(capi(`/jobs/${jobId}/note`),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
-  input.value='';
+async function adminSaveNote(jobId) {
+  const area = document.getElementById('admin-note-area-'+jobId);
+  const text = area?.value.trim();
+  if (!text) return;
+  await apiFetch(capi('/jobs/'+jobId+'/note'), {method:'POST', body:JSON.stringify({text})});
+  area.value = '';
   loadAll();
+  setTimeout(()=>openDetail(jobId), 300);
+}
+async function adminDeleteNote(jobId, idx) {
+  await apiFetch(capi('/jobs/'+jobId+'/note/'+idx), {method:'DELETE'});
+  loadAll();
+  setTimeout(()=>openDetail(jobId), 300);
 }
 
 

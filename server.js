@@ -111,10 +111,14 @@ function computeStatus(job) {
   const service = cl.find(s=>s.id==='service');
   const docs    = cl.find(s=>s.id==='documents');
   const allDone = s => s?.steps.every(x=>x.done||x.skipped);
+  // Only upload steps (not text notes) determine doc completion for client prompt
+  const docUploadsDone = docs?.steps.filter(s=>s.requiresUpload && !s.isTextNote).every(s=>s.done);
+  const docNotesDone   = docs?.steps.filter(s=>s.isTextNote).every(s=>s.done||s.skipped);
+  const allDocsDone    = docUploadsDone && docNotesDone;
   // Check if service_complete ticked
   const serviceComplete = service?.steps.find(s=>s.id==='service_complete')?.done;
   if (serviceComplete && !job.systemOk) return 'Awaiting System Check';
-  if (allDone(docs) && job.systemOk) return 'Awaiting Document Check';
+  if (allDocsDone && job.systemOk) return 'Awaiting Document Check';
   if (allDone(service) || job.systemOk) return 'Waiting for Docs';
   if (allDone(pre)) return 'In Progress';
   return 'In Progress';
@@ -673,6 +677,15 @@ app.post('/api/:companyId/jobs/:id/step', requireCompanyAuth(), (req, res) => {
       if (typeof skipped !== 'undefined') step.skipped = skipped;
       if (typeof noteText!== 'undefined') { step.noteText = noteText; step.done = noteText.trim().length > 0; }
     }
+    // Re-check docCheckPending whenever a doc step changes
+    if (secId === 'documents') {
+      const docSec      = job.checklist?.find(s=>s.id==='documents');
+      const uploadSteps = docSec?.steps.filter(s=>s.requiresUpload && !s.isTextNote);
+      const noteSteps   = docSec?.steps.filter(s=>s.isTextNote);
+      if (uploadSteps?.every(s=>s.done) && noteSteps?.every(s=>s.done||s.skipped)) {
+        job.docCheckPending = true;
+      }
+    }
     job.status = computeStatus(job);
     if (secId==='service' && stepId==='service_complete' && done) {
       job.systemCheckPending = true;
@@ -830,7 +843,31 @@ app.post('/api/:companyId/jobs/:id/notes', requireCompanyAuth('admin'), (req, re
   const cid = req.params.companyId;
   const job = jobAction(cid, req.params.id, (job) => {
     job.notes = job.notes || [];
-    job.notes.push({ text: req.body.text, at: new Date().toLocaleString() });
+    job.notes.push({ text: req.body.text, date: new Date().toLocaleString(), by: req.user.name });
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  broadcast(cid, { type:'refresh' });
+  res.json({ ok:true });
+});
+
+// Also accept /note (singular) for admin
+app.post('/api/:companyId/jobs/:id/note', requireCompanyAuth('admin'), (req, res) => {
+  const cid = req.params.companyId;
+  const job = jobAction(cid, req.params.id, (job) => {
+    job.notes = job.notes || [];
+    job.notes.push({ text: req.body.text, date: new Date().toLocaleString(), by: req.user.name });
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  broadcast(cid, { type:'refresh' });
+  res.json({ ok:true });
+});
+
+// Delete a note by index
+app.delete('/api/:companyId/jobs/:id/note/:idx', requireCompanyAuth('admin'), (req, res) => {
+  const cid = req.params.companyId;
+  const idx = parseInt(req.params.idx);
+  const job = jobAction(cid, req.params.id, (job) => {
+    if (job.notes && job.notes[idx] !== undefined) job.notes.splice(idx, 1);
   });
   if (!job) return res.status(404).json({ error:'Not found' });
   broadcast(cid, { type:'refresh' });
@@ -880,9 +917,15 @@ app.post('/api/:companyId/jobs/:id/reschedule/respond', requireCompanyAuth('clie
       if (job.rescheduleProposal.proposedDate) job.date = job.rescheduleProposal.proposedDate;
       if (job.rescheduleProposal.proposedTime) job.time = job.rescheduleProposal.proposedTime;
       job.rescheduleProposal.status = 'accepted';
+      job.rescheduleThread = job.rescheduleThread || [];
       job.rescheduleThread.push({ by:req.user.name, role:'client', action:'accepted', at:new Date().toLocaleString() });
-      // Only mark accepted if it was an installer-proposed reschedule (installer couldn't make original time)
-      // The job still needs installer to accept via the normal flow
+      // Auto-start: if installer proposed this reschedule, client accepting it starts the job
+      if (!job.accepted) {
+        job.accepted   = true;
+        job.acceptedAt = new Date().toLocaleString();
+        addActivity(job, 'System', 'system', 'Job auto-started — client accepted new time');
+      }
+      job.status = computeStatus(job);
       addActivity(job, req.user.name, 'client', '✓ New time accepted', job.date+(job.time?' at '+job.time:''));
     } else {
       job.rescheduleProposal.status = 'rejected';
@@ -937,9 +980,12 @@ app.post('/api/:companyId/jobs/:id/upload', requireCompanyAuth(), upload.single(
         step.uploadedFiles.push({ filename:safeName, original:req.file.originalname, fileUrl });
         step.done = true;
       }
-      const docSec     = job.checklist?.find(s=>s.id==='documents');
+      const docSec      = job.checklist?.find(s=>s.id==='documents');
       const uploadSteps = docSec?.steps.filter(s=>s.requiresUpload && !s.isTextNote);
-      if (uploadSteps?.every(s=>s.done)) job.docCheckPending = true;
+      const noteSteps   = docSec?.steps.filter(s=>s.isTextNote);
+      const uploadsDone = uploadSteps?.every(s=>s.done);
+      const notesDone   = noteSteps?.every(s=>s.done||s.skipped);
+      if (uploadsDone && notesDone) job.docCheckPending = true;
     });
     if (!job) return res.json({ ok:false, error:'Job not found' });
     broadcast(cid, { type:'refresh' });
