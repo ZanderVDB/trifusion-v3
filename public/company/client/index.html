@@ -25,18 +25,19 @@
 </head>
 <body>
 <div class="topbar">
-  <div class="topbar-logo">
+    <div class="topbar-logo">
     <div class="logo-icon" id="topbar-logo-letter">T</div>
-    <div>
-      <div class="logo-text" id="topbar-company">—</div>
-      <div class="logo-sub" id="topbar-sub">(Client Portal) —</div>
+    <div class="topbar-brand">
+      <div class="topbar-brand-company" id="topbar-company">—</div>
+      <div class="topbar-brand-person" id="topbar-person">—</div>
     </div>
   </div>
-  <div style="position:absolute;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none">
-    <div style="font-size:11px;color:#334155;font-weight:600;letter-spacing:.06em;text-transform:uppercase" id="topbar-org">—</div>
+  <div class="topbar-centre">
+    <div class="topbar-service" id="topbar-org">— Service</div>
+    <div class="topbar-portal">Client Portal</div>
   </div>
   <div class="topbar-spacer"></div>
-  <div class="topbar-user">Logged in as <span id="user-name">—</span></div>
+  
   <button class="btn-logout" onclick="tfLogout()">Sign Out</button>
 </div>
 
@@ -218,18 +219,27 @@ async function checkAuth() {
   }
   document.getElementById('user-name').textContent = auth.name || 'David';
   // Update portal subtitle with actual client name
-  // Set topbar
-  const _clientComp = auth.clientCompanyName || auth.companyName || '';
-  const _clientName = auth.name || '';
-  const _adminComp  = auth.companyName || '';
-  const compEl = document.getElementById('topbar-company');
-  const subEl  = document.getElementById('topbar-sub');
-  const orgEl  = document.getElementById('topbar-org');
-  const llEl   = document.getElementById('topbar-logo-letter');
-  if (compEl) compEl.textContent = _clientComp || _adminComp;
-  if (subEl)  subEl.textContent  = '(Client Portal) ' + _clientName;
-  if (orgEl)  orgEl.textContent  = 'A ' + _adminComp + ' Service';
-  if (llEl)   llEl.textContent   = (_clientComp||_adminComp||'C')[0].toUpperCase();
+  // Set topbar — company name top-left, person name below, service centre
+  async function updateTopbar() {
+    const auth = getAuth();
+    const name = auth?.name || 'Client';
+    // Try fetching company settings for live company name
+    let companyName = auth?.companyName || '';
+    try {
+      const s = await apiFetch(capi('/settings')).then(r=>r.json());
+      if (s?.companyName) companyName = s.companyName;
+    } catch(e) {}
+    const el_company = document.getElementById('topbar-company');
+    const el_person  = document.getElementById('topbar-person');
+    const el_org     = document.getElementById('topbar-org');
+    const el_letter  = document.getElementById('topbar-logo-letter');
+    if (el_company) el_company.textContent = companyName || 'Company';
+    if (el_person)  el_person.textContent  = name;
+    if (el_org)     el_org.textContent     = 'A ' + (companyName||'—') + ' Service';
+    if (el_letter)  el_letter.textContent  = (companyName||name||'?')[0].toUpperCase();
+  }
+  updateTopbar();
+
   loadJobs();
   startSSE();
 }
@@ -346,7 +356,7 @@ function renderJobList() {
         <span class="job-name">${j.name||j.location}</span>
         ${(()=>{
           // Only ONE primary badge at a time
-          if(j.clientConfirmed) return '<span class="badge" style="background:#0a2a1e;color:#34d399;border:1px solid #34d399">🎉 Job Fully Complete</span>';
+          if(j.clientConfirmed) return badgeHTML('Completed');
           if(j.truckUnavailable) return '<span class="badge" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">✕ Truck Unavailable</span>';
           if(j.problemReport) return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f8717140">⚠ Problem Reported</span>';
           const installDone=j.checklist?.find(s=>s.id==='service')?.steps.find(s=>s.id==='service_complete')?.done||j.systemCheckPending||j.systemOk;
@@ -388,6 +398,7 @@ function showDashboard() {
   currentJobId = null;
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('detail-view').style.display = 'none';
+  loadJobs();
 }
 
 function renderDetail(id) {
