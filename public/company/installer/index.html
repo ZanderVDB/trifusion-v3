@@ -168,19 +168,32 @@ async function checkAuth() {
   }
   document.getElementById('dashboard').style.display='block';
   myInstaller = auth.installer || '';
-  // Set topbar
+  // Set topbar — fetch fresh user data to get updated company name
   const _auth = getAuth();
   const _name = _auth?.name || 'Installer';
-  const _leftComp   = _auth?.installerCompanyName || _auth?.name || '';
   const _centreComp = _auth?.companyName || '';
+  // Start with cached values, then update from server
   const el_co = document.getElementById('topbar-company');
   const el_pe = document.getElementById('topbar-person');
   const el_or = document.getElementById('topbar-org');
   const el_ll = document.getElementById('topbar-logo-letter');
-  if (el_co) el_co.textContent = _leftComp || 'Company';
   if (el_pe) el_pe.textContent = _name;
   if (el_or) el_or.textContent = 'A ' + (_centreComp||'—') + ' Service';
-  if (el_ll) el_ll.textContent = (_auth?.installerCompanyName||_auth?.name||' ')[0].toUpperCase();
+  // Fetch fresh companyName from server
+  apiFetch('/api/me').then(r=>r.json()).then(me=>{
+    const freshComp = me.companyName || _auth?.installerCompanyName || _auth?.name || '';
+    if (el_co) el_co.textContent = freshComp || 'Company';
+    if (el_ll) el_ll.textContent = (freshComp||_name||' ')[0].toUpperCase();
+    // Also update the stored auth token with fresh company name
+    if (me.companyName && me.companyName !== _auth?.installerCompanyName) {
+      const stored = getAuth();
+      if (stored) { stored.installerCompanyName = me.companyName; setAuth(stored); }
+    }
+  }).catch(()=>{
+    const fb = _auth?.installerCompanyName || _auth?.name || '';
+    if (el_co) el_co.textContent = fb || 'Company';
+    if (el_ll) el_ll.textContent = (fb||' ')[0].toUpperCase();
+  });
   loadJobs();
   startSSE();
 }

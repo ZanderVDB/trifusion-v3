@@ -278,7 +278,15 @@ app.get('/api/me', (req, res) => {
   const token = auth.replace('Bearer ','').trim();
   const user  = getUserByToken(token);
   if (!user) return res.json({ loggedIn:false });
-  res.json({ loggedIn:true, ...user });
+  // Return fresh companyName from DB for installers
+  let freshCompanyName = user.companyName || '';
+  if (user.role === 'installer' && user.companyId) {
+    const users = getCompanyUsers(user.companyId);
+    const dbUser = users[user.username];
+    if (dbUser?.companyName) freshCompanyName = dbUser.companyName;
+    else if (dbUser?.installer) freshCompanyName = dbUser.installer;
+  }
+  res.json({ loggedIn:true, ...user, companyName: freshCompanyName });
 });
 
 // ── SIGNUP ────────────────────────────────────────────────────────────────────
