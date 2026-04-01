@@ -1163,6 +1163,16 @@ function openAddRecord() {
       clientSel.innerHTML = '<option value="">Select client…</option>' +
         clients.map(u=>`<option value="${u.clientId||u.username}">${u.name}${u.companyName?' ('+u.companyName+')':''}</option>`).join('');
     }
+    // Populate country dropdown from installers
+    const countrySel = document.getElementById('ar-country');
+    if (countrySel) {
+      const allCountries = [...new Set(installers.flatMap(u=>u.countries||[]))].sort();
+      countrySel.innerHTML = '<option value="">Select country…</option>' +
+        allCountries.map(co=>`<option value="${co}">${co}</option>`).join('') +
+        '<option value="__other">Other…</option>';
+    }
+    // Store installers for auto-select
+    window._arInstallers = Object.values(users).filter(u=>u.role==='installer');
   }).catch(()=>{});
   // Default dates to today
   const today = new Date().toISOString().slice(0,10);
@@ -1170,6 +1180,17 @@ function openAddRecord() {
   document.getElementById('ar-completion').value = today;
   document.getElementById('ar-msg').textContent = '';
   document.getElementById('add-record-modal').classList.add('open');
+}
+function arAutoSelectInstaller() {
+  const country = document.getElementById('ar-country')?.value;
+  if (!country || country === '__other') return;
+  const installers = window._arInstallers || [];
+  const countryLower = country.toLowerCase();
+  const match = installers.find(u=>(u.countries||[]).some(co=>co.toLowerCase()===countryLower));
+  if (match) {
+    const sel = document.getElementById('ar-installer');
+    if (sel) sel.value = match.installer || match.name;
+  }
 }
 function closeAddRecord() {
   document.getElementById('add-record-modal').classList.remove('open');
@@ -1437,17 +1458,21 @@ checkAuth();
     <div class="form-grid">
       <div class="form-field"><label class="form-label">Location *</label><input class="form-input" id="ar-location" placeholder="e.g. Korridor Lusaka Truck Stop"/></div>
       <div class="form-field"><label class="form-label">Truck Number</label><input class="form-input" id="ar-truck" placeholder="e.g. ABS7267"/></div>
-      <div class="form-field"><label class="form-label">Country *</label><input class="form-input" id="ar-country" placeholder="e.g. South Africa"/></div>
+      <div class="form-field"><label class="form-label">Country *</label>
+        <select class="form-input" id="ar-country" onchange="arAutoSelectInstaller()">
+          <option value="">Select country…</option>
+        </select>
+      </div>
       <div class="form-field"><label class="form-label">Installer</label><select class="form-input" id="ar-installer"><option value="">Select installer…</option></select></div>
       <div class="form-field"><label class="form-label">Client</label>
         <select class="form-input" id="ar-client"><option value="">Select client…</option></select>
       </div>
       <div class="form-field"><label class="form-label">Service Type</label>
-        <select class="form-input" id="ar-service">
+        <select class="form-input" id="ar-service" onchange="const uw=document.getElementById('ar-unit-wrap');if(uw)uw.style.display=this.value==='Inspection'?'none':''">
           <option>Installation</option><option>Inspection</option><option>Remove and Install</option><option>Decommissioning</option>
         </select>
       </div>
-      <div class="form-field"><label class="form-label">Unit Type</label>
+      <div class="form-field" id="ar-unit-wrap"><label class="form-label">Unit Type</label>
         <select class="form-input" id="ar-unit"><option>Basic</option><option>Advanced</option></select>
       </div>
       <div class="form-field"><label class="form-label">Service Date *</label><input class="form-input" type="date" id="ar-date"/></div>
