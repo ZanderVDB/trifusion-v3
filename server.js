@@ -1341,6 +1341,22 @@ function seedDatabase() {
     writeJSON(signupsFile, []);
   }
 
+  // Patch existing installers missing companyName
+  try {
+    const trifDir2 = path.join(DB_DIR, 'companies', 'trifusion');
+    const uFile2 = path.join(trifDir2, 'users.json');
+    if (fs.existsSync(uFile2)) {
+      const u2 = readJSON(uFile2, {});
+      let patched = false;
+      Object.values(u2).forEach(user => {
+        if (user.role === 'installer' && !user.companyName) {
+          user.companyName = user.installer || user.name || '';
+          patched = true;
+        }
+      });
+      if (patched) { writeJSON(uFile2, u2); console.log('[SEED] Patched installer companyNames'); }
+    }
+  } catch(e) {}
   console.log('[SEED] Database check complete');
 }
 
