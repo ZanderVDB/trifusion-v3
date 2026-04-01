@@ -923,6 +923,10 @@ app.post('/api/:companyId/jobs/:id/reschedule/respond', requireCompanyAuth('clie
       if (!job.accepted) {
         job.accepted   = true;
         job.acceptedAt = new Date().toLocaleString();
+        // Tick the checklist acceptance step so computeStatus moves past Pending Acceptance
+        const acceptSec  = job.checklist?.find(s=>s.id==='accepted');
+        const acceptStep = acceptSec?.steps.find(s=>s.id==='job_accepted');
+        if (acceptStep) acceptStep.done = true;
         addActivity(job, 'System', 'system', 'Job auto-started — client accepted new time');
       }
       job.status = computeStatus(job);
