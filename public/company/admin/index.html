@@ -58,6 +58,7 @@
     <span class="badge-count" id="unread-count">0</span>
   </span>
   
+  <button class="btn-secondary" onclick="openAddRecord()" style="font-size:13px;padding:7px 14px">📋 Add Record</button>
   <button class="btn-primary" onclick="openNewJobModal()" style="font-size:13px;padding:7px 14px"><span class="hide-mobile">+ New Service</span><span class="show-mobile">+</span></button>
   <button class="btn-logout" onclick="tfLogout()">Sign Out</button>
 </div>
@@ -352,7 +353,7 @@ function renderOverview(){
   document.getElementById('attention-list').innerHTML=attention.length?attention.map(j=>{
     let reason='';
     if(j.truckUnavailable) reason='✕ Truck unavailable: '+(j.truckUnavailableReason||'').slice(0,60);
-    else if(j.problemReport) reason='🚨 Problem: '+(j.problemReport.message||j.problemReport.reason||'').slice(0,60);
+    else if(j.problemReport?.status==='open') reason='🚨 Problem: '+(j.problemReport.message||'').slice(0,60);
     else if(j.status==='Pending Acceptance') reason='🔴 Awaiting installer acceptance';
     else if(j.rescheduleProposal?.status==='pending') reason='⚠ Reschedule pending client response';
     else if(j.status==='Waiting for Docs') reason='📄 Waiting for installer documents';
@@ -543,7 +544,7 @@ function renderModalContent(id){
     <div style="background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:14px 16px;margin-bottom:14px">
       <div style="font-size:13px;color:#34d399;font-weight:600;margin-bottom:4px">✓ Job Completed</div>
       <div style="font-size:12px;color:#475569;margin-bottom:10px">This job is complete. Click Edit to make changes.</div>
-      <button onclick="this.closest('div').innerHTML=''" style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 14px;color:#94a3b8;font-size:12px;cursor:pointer">✏️ Edit Job Details</button>
+      <button onclick="this.closest('div').innerHTML='';const _m=document.createElement('span');_m.id='edit-unlocked-${j.id}';_m.style.display='none';document.getElementById('modal-job-content').appendChild(_m);" style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 14px;color:#94a3b8;font-size:12px;cursor:pointer">✏️ Edit Job Details</button>
     </div>` :
   `
     <div class="card" style="margin-bottom:14px">
@@ -597,10 +598,10 @@ function renderModalContent(id){
           </div>
           <button onclick="adminDeleteNote('${j.id}',${ni})" style="background:#2a0f0f;border:none;border-radius:4px;color:#f87171;font-size:11px;padding:3px 7px;cursor:pointer;flex-shrink:0">✕</button>
         </div>`).join(''):''}
-      <textarea id="admin-note-area-${j.id}" rows="2" placeholder="Type a note and press Enter to save…"
+      ${j.clientConfirmed && !false ? `<div style="font-size:12px;color:#334155;font-style:italic">Press Edit to add notes</div>` : `<textarea id="admin-note-area-${j.id}" rows="2" placeholder="Type a note and press Enter to save…"
         style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:9px 11px;color:#e2e8f0;font-size:13px;font-family:inherit;resize:vertical"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();adminSaveNote('${j.id}')}"></textarea>
-      <div style="font-size:11px;color:#334155;margin-top:4px">Press Enter to save · Shift+Enter for new line</div>
+      <div style="font-size:11px;color:#334155;margin-top:4px">Press Enter to save · Shift+Enter for new line</div>`}
     </div>`;
 
   const scheduleThread = '';
@@ -1145,6 +1146,123 @@ async function adminResolveProblem(jobId) {
   loadAll();
   closeDetail();
 }
+
+function openAddRecord() {
+  // Populate client dropdown
+  const sel = document.getElementById('ar-client');
+  if (sel) {
+    const clients = [...new Set(jobs.map(j=>({id:j.clientId,name:j.clientCompanyName||j.clientName||j.clientId})).filter(x=>x.id))];
+    sel.innerHTML = '<option value="">Select client…</option>' +
+      clients.map(cl=>`<option value="${cl.id}">${cl.name}</option>`).join('');
+  }
+  // Default dates to today
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('ar-date').value = today;
+  document.getElementById('ar-completion').value = today;
+  document.getElementById('ar-msg').textContent = '';
+  document.getElementById('add-record-modal').classList.add('open');
+}
+function closeAddRecord() {
+  document.getElementById('add-record-modal').classList.remove('open');
+}
+
+async function submitAddRecord() {
+  const location   = document.getElementById('ar-location').value.trim();
+  const date       = document.getElementById('ar-date').value;
+  const completion = document.getElementById('ar-completion').value;
+  const country    = document.getElementById('ar-country').value.trim();
+  const msgEl      = document.getElementById('ar-msg');
+  msgEl.textContent = '';
+  if (!location) { msgEl.textContent = 'Location is required.'; return; }
+  if (!date)     { msgEl.textContent = 'Service date is required.'; return; }
+  if (!country)  { msgEl.textContent = 'Country is required.'; return; }
+  if (!completion){ msgEl.textContent = 'Completion date is required.'; return; }
+
+  const btn = document.getElementById('ar-submit-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const time = document.getElementById('ar-time-h').value + ':' + document.getElementById('ar-time-m').value;
+
+  // Build the record payload
+  const payload = {
+    location, date, time, country, completion,
+    truck:       document.getElementById('ar-truck').value.trim(),
+    technician:  document.getElementById('ar-technician').value.trim(),
+    clientId:    document.getElementById('ar-client').value,
+    serviceType: document.getElementById('ar-service').value,
+    unitType:    document.getElementById('ar-unit').value,
+    notes:       document.getElementById('ar-notes').value.trim(),
+    isRecord: true
+  };
+
+  // Upload files first
+  const uploads = {};
+  const filesToUpload = [
+    { id:'ar-jobcard',   key:'jobcard' },
+    { id:'ar-checklist', key:'checklist' },
+  ];
+  for (const { id, key } of filesToUpload) {
+    const input = document.getElementById(id);
+    if (input?.files?.[0]) {
+      const fd = new FormData();
+      fd.append('file', input.files[0]);
+      fd.append('secId', 'documents');
+      fd.append('stepId', key === 'jobcard' ? 'doc_job_card' : 'doc_checklist');
+      fd.append('tempUpload', 'true');
+      uploads[key] = { name: input.files[0].name };
+    }
+  }
+  // Images
+  const imgInput = document.getElementById('ar-images');
+  if (imgInput?.files?.length) {
+    uploads.images = [...imgInput.files].map(f=>f.name);
+    payload.imageFiles = uploads.images;
+  }
+
+  // Create the record via API
+  const res  = await apiFetch(capi('/jobs/record'), { method:'POST', body:JSON.stringify(payload) });
+  const data = await res.json();
+
+  if (!data.ok) {
+    msgEl.textContent = data.error || 'Error saving record.';
+    btn.disabled = false; btn.textContent = '✓ Save Completed Record';
+    return;
+  }
+
+  const newJobId = data.id;
+
+  // Upload documents to the new job
+  const docUploads = [
+    { inputId:'ar-jobcard',   secId:'documents', stepId:'doc_job_card' },
+    { inputId:'ar-checklist', secId:'documents', stepId:'doc_checklist' },
+  ];
+  for (const { inputId, secId, stepId } of docUploads) {
+    const inp = document.getElementById(inputId);
+    if (inp?.files?.[0]) {
+      const fd = new FormData();
+      fd.append('file', inp.files[0]);
+      fd.append('secId', secId);
+      fd.append('stepId', stepId);
+      await apiUpload(capi('/jobs/'+newJobId+'/upload'), fd);
+    }
+  }
+  // Upload images
+  const imgs = document.getElementById('ar-images');
+  if (imgs?.files?.length) {
+    for (const file of imgs.files) {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('secId', 'documents');
+      fd.append('stepId', 'doc_images');
+      await apiUpload(capi('/jobs/'+newJobId+'/upload'), fd);
+    }
+  }
+
+  closeAddRecord();
+  loadAll();
+  btn.disabled = false; btn.textContent = '✓ Save Completed Record';
+}
+
 checkAuth();
 </script>
 
@@ -1301,5 +1419,55 @@ checkAuth();
   <span style="font-size:11px;color:#334155;font-weight:700;margin-left:6px;letter-spacing:.04em">WEBANCHOR</span>
 </div>
 <div style="height:26px"></div><!-- footer spacer -->
+
+<!-- ADD RECORD MODAL -->
+<div class="modal-overlay" id="add-record-modal" onclick="if(event.target===this)closeAddRecord()">
+  <div class="modal fade-in" style="width:700px;max-height:90vh;overflow-y:auto">
+    <div class="modal-title">📋 Add Completed Record</div>
+    <p style="font-size:13px;color:#64748b;margin-bottom:16px">Manually add a job that was completed outside the system. All checklist steps will be marked as done automatically.</p>
+    <div class="form-grid">
+      <div class="form-field"><label class="form-label">Location *</label><input class="form-input" id="ar-location" placeholder="e.g. Korridor Lusaka Truck Stop"/></div>
+      <div class="form-field"><label class="form-label">Truck Number</label><input class="form-input" id="ar-truck" placeholder="e.g. ABS7267"/></div>
+      <div class="form-field"><label class="form-label">Country *</label><input class="form-input" id="ar-country" placeholder="e.g. South Africa"/></div>
+      <div class="form-field"><label class="form-label">Technician</label><input class="form-input" id="ar-technician" placeholder="e.g. Brigade"/></div>
+      <div class="form-field"><label class="form-label">Client</label>
+        <select class="form-input" id="ar-client"><option value="">Select client…</option></select>
+      </div>
+      <div class="form-field"><label class="form-label">Service Type</label>
+        <select class="form-input" id="ar-service">
+          <option>Installation</option><option>Inspection</option><option>Remove and Install</option><option>Decommissioning</option>
+        </select>
+      </div>
+      <div class="form-field"><label class="form-label">Unit Type</label>
+        <select class="form-input" id="ar-unit"><option>Basic</option><option>Advanced</option></select>
+      </div>
+      <div class="form-field"><label class="form-label">Service Date *</label><input class="form-input" type="date" id="ar-date"/></div>
+      <div class="form-field"><label class="form-label">Service Time</label>
+        <div class="time-picker-wrap">
+          <select class="time-sel form-input" id="ar-time-h" style="flex:1"><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option></select>
+          <span style="color:#64748b;font-weight:700">:</span>
+          <select class="time-sel form-input" id="ar-time-m" style="flex:1"><option value="00">00</option><option value="15">15</option><option value="30">30</option><option value="45">45</option></select>
+        </div>
+      </div>
+      <div class="form-field"><label class="form-label">Completion Date *</label><input class="form-input" type="date" id="ar-completion"/></div>
+    </div>
+    <!-- Documents -->
+    <div style="margin-top:18px;border-top:1px solid #1e293b;padding-top:16px">
+      <div class="card-title" style="margin-bottom:12px">📄 Documents</div>
+      <div class="form-grid">
+        <div class="form-field"><label class="form-label">Job Card</label><input type="file" class="form-input" id="ar-jobcard" accept=".pdf,.jpg,.jpeg,.png"/></div>
+        <div class="form-field"><label class="form-label">Inspection Checklist</label><input type="file" class="form-input" id="ar-checklist" accept=".pdf,.jpg,.jpeg,.png"/></div>
+        <div class="form-field" style="grid-column:1/-1"><label class="form-label">Images (select multiple)</label><input type="file" class="form-input" id="ar-images" accept=".jpg,.jpeg,.png" multiple/></div>
+        <div class="form-field" style="grid-column:1/-1"><label class="form-label">Additional Notes</label><textarea class="form-input" id="ar-notes" rows="2" placeholder="Any notes about this job…" style="resize:vertical"></textarea></div>
+      </div>
+    </div>
+    <div id="ar-msg" style="font-size:13px;color:#f87171;margin-top:10px"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn-secondary" style="flex:1" onclick="closeAddRecord()">Cancel</button>
+      <button class="btn-primary" style="flex:2" id="ar-submit-btn" onclick="submitAddRecord()">✓ Save Completed Record</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

@@ -641,6 +641,63 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
   res.json({ ok:true, id });
 });
 
+
+// ── Add completed record (admin backdating) ───────────────────────────────────
+app.post('/api/:companyId/jobs/record', requireCompanyAuth('admin'), (req, res) => {
+  const cid = req.params.companyId;
+  const { location, date, time, country, truck, technician, clientId,
+          serviceType, unitType, notes, completion } = req.body;
+  if (!location || !date || !country) return res.json({ ok:false, error:'Location, date and country required' });
+
+  const users = getCompanyUsers(cid);
+  const clientUser = clientId ? Object.values(users).find(u=>u.clientId===clientId) : null;
+
+  const id = nextJobId(cid);
+
+  // Build a fully-completed checklist
+  function makeStep(id, label, done=true, extra={}) {
+    return { id, label, done, ...extra };
+  }
+  const checklist = [
+    { id:'accepted', title:'Service Acceptance', who:'installer', steps:[makeStep('job_accepted','Accept this service')] },
+    { id:'pre',      title:'Pre-Service Confirmation', who:'installer', steps:[makeStep('pre_confirm','Confirm service is still happening')] },
+    { id:'service',  title:'Service Check', who:'installer', steps:[
+      makeStep('tech_onsite','Technician confirmed on-site'),
+      makeStep('truck_onsite','Vehicle / truck confirmed on-site'),
+      makeStep('service_complete','Service complete'),
+    ]},
+    { id:'documents', title:'Post-Service Documents', who:'both', steps:[
+      { id:'doc_job_card',  label:'Job card',            done:false, requiresUpload:true,  uploadedFiles:[] },
+      { id:'doc_checklist', label:'Inspection checklist',done:false, requiresUpload:true,  uploadedFiles:[] },
+      { id:'doc_images',    label:'Images of job',       done:false, requiresUpload:true,  multipleFiles:true, uploadedFiles:[] },
+      { id:'doc_notes',     label:'Additional notes',    done: !!(notes&&notes.trim()), isTextNote:true, noteText:notes||'', skipped:!(notes&&notes.trim()) },
+    ]},
+  ];
+
+  const job = {
+    id, location, name:location, truck:truck||'', technician:technician||'',
+    country, date, time:time||'', serviceType:serviceType||'Installation',
+    unitType:serviceType==='Inspection'?'N/A':(unitType||'Basic'),
+    clientId:clientId||'', clientName:clientUser?.name||'',
+    clientCompanyName:clientUser?.companyName||'',
+    startDate:date, completionDate:completion||date,
+    notes:[], status:'Completed',
+    accepted:true, acceptedAt:date,
+    truckConfirmed:true, systemOk:true, systemOkAt:completion||date,
+    clientConfirmed:true, clientConfirmedAt:completion||date,
+    checklist,
+    activityLog:[
+      { who:'Admin', role:'admin', event:'Record added manually', detail:`${location} — ${country}`, at:new Date().toLocaleString() }
+    ]
+  };
+
+  const jobs = getCompanyJobs(cid);
+  jobs.push(job);
+  saveCompanyJobs(cid, jobs);
+  broadcast(cid, { type:'refresh' });
+  res.json({ ok:true, id });
+});
+
 app.put('/api/:companyId/jobs/:id', requireCompanyAuth('admin'), (req, res) => {
   const cid  = req.params.companyId;
   const jobs = getCompanyJobs(cid);
