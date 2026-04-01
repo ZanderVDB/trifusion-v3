@@ -236,9 +236,15 @@ async function checkAuth() {
 
 
 // ── SSE ───────────────────────────────────────────────────────────────────────
+let _sseInstance = null;
 function startSSE() {
-  const token = getAuth()?.token || ''; const es = new EventSource(capi('/events')+'?token='+token);
+  if (_sseInstance) { try { _sseInstance.close(); } catch(e){} }
+  const token = getAuth()?.token || '';
+  const es = new EventSource(capi('/events')+'?token='+token);
+  _sseInstance = es;
+  es.onopen    = () => { loadJobs(); };
   es.onmessage = e => { try { const d=JSON.parse(e.data); if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message') scheduleRefresh(); } catch(ex){} };
+  es.onerror   = () => { setTimeout(startSSE, 3000); };
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -517,15 +523,9 @@ function renderActionCard(j) {
   // Show problem-reported state
   if (j.problemReport?.status === 'open') return `
     <div class="card" style="margin-top:14px;border:2px solid #f87171;background:#0a0505">
-      <div style="font-weight:700;font-size:15px;color:#f87171;margin-bottom:8px">⚠ Problem Reported</div>
-      <div style="font-size:13px;color:#fca5a5;margin-bottom:4px">"${j.problemReport.message}"</div>
-      <div style="font-size:11px;color:#475569">Reported ${j.problemReport.reportedAt} — Waiting for installer to fix</div>
-    </div>`;
-  if (j.problemReport?.status === 'fixed') return `
-    <div class="card" style="margin-top:14px;border:2px solid #fbbf24;background:#0a0802">
-      <div style="font-weight:700;font-size:15px;color:#fbbf24;margin-bottom:8px">🔧 Installer says it's fixed</div>
-      <div style="font-size:13px;color:#fde68a;margin-bottom:4px">Note: "${j.problemReport.fixNote}"</div>
-      <div style="font-size:11px;color:#475569">Waiting for admin to review and re-open the check</div>
+      <div style="font-weight:700;font-size:15px;color:#f87171;margin-bottom:8px">⚠ ${j.problemReport.checkpoint==='documents'?'Document':'System'} Problem Reported</div>
+      <div style="font-size:13px;color:#fca5a5;margin-bottom:4px">"${j.problemReport.message||j.problemReport.reason||''}"</div>
+      <div style="font-size:11px;color:#475569">Reported ${j.problemReport.reportedAt} — Installer has been notified</div>
     </div>`;
 
   // ── STEP 1: Is the system working? ──────────────────────────────────────

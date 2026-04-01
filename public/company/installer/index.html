@@ -122,7 +122,9 @@ function capi(path) { return '/api/' + COMPANY_ID + path; }
 let _refreshTimer = null;
 function scheduleRefresh() {
   clearTimeout(_refreshTimer);
-  _refreshTimer = setTimeout(() => { loadJobs(); }, 300);
+  _refreshTimer = setTimeout(() => {
+    if (!_noteJobId) loadJobs();
+  }, 300);
 }
 
 function jobUrgencyStyle(job){
@@ -169,7 +171,7 @@ async function checkAuth() {
   // Set topbar
   const _auth = getAuth();
   const _name = _auth?.name || 'Installer';
-  const _leftComp   = _auth?.installerCompanyName || _auth?.name || '';
+  const _leftComp   = _auth?.installerCompanyName || '';
   const _centreComp = _auth?.companyName || '';
   const el_co = document.getElementById('topbar-company');
   const el_pe = document.getElementById('topbar-person');
@@ -178,15 +180,20 @@ async function checkAuth() {
   if (el_co) el_co.textContent = _leftComp || 'Company';
   if (el_pe) el_pe.textContent = _name;
   if (el_or) el_or.textContent = 'A ' + (_centreComp||'—') + ' Service';
-  if (el_ll) el_ll.textContent = (_auth?.installerCompanyName||_auth?.name||'?')[0].toUpperCase();perCase();
+  if (el_ll) el_ll.textContent = (_auth?.installerCompanyName||_auth?.name||' ')[0].toUpperCase();perCase();
   loadJobs();
   startSSE();
 }
 
+let _sseInstance = null;
 function startSSE(){
+  if (_sseInstance) { try { _sseInstance.close(); } catch(e){} }
   const token = getAuth()?.token||'';
   const es = new EventSource(capi('/events')+'?token='+token);
+  _sseInstance = es;
+  es.onopen  = () => { loadJobs(); }; // reload on (re)connect
   es.onmessage = e => { try { const d=JSON.parse(e.data); if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message') scheduleRefresh(); } catch(ex){} };
+  es.onerror = () => { setTimeout(startSSE, 3000); };
 }
 
 async function loadJobs(){
@@ -234,7 +241,7 @@ function getJobBadge(j) {
       : '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">🚫 Truck Unavailable</span>';
   }
   if (j.problemReport?.status==='open')  return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">⚠ Problem Reported</span>';
-  if (j.problemReport?.status==='fixed') return '<span class="badge" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">🔧 Awaiting Admin Review</span>';
+  // problem-fixed now goes straight to client, no awaiting admin
   const rp = j.rescheduleProposal?.status==='pending';
   if (rp) {
     const lr = j.rescheduleThread?.[j.rescheduleThread.length-1]?.role;
@@ -526,14 +533,10 @@ function renderDetail(id){
 
     ${isAccepted ? `<div>${checklistHTML}</div>` : `<div style="opacity:.4;pointer-events:none">${checklistHTML}</div>`}
     ${j.problemReport?.status==='fixed'?`
-    <div style="background:#0a2a1e;border:2px solid #34d399;border-radius:12px;padding:16px 18px;margin-bottom:14px">
-      <div style="font-weight:700;font-size:14px;color:#34d399;margin-bottom:6px">🔧 You marked this as fixed</div>
-      <div style="font-size:13px;color:#86efac;margin-bottom:4px">Note: "${j.problemReport.fixNote}"</div>
-      <div style="font-size:11px;color:#475569">Waiting for admin to review and continue</div>
-    </div>`:j.problemReport?.status==='open'?`
+// no awaiting admin banner`:j.problemReport?.status==='open'?`
     <div style="background:#2a0f0f;border:2px solid #f87171;border-radius:12px;padding:16px 18px;margin-bottom:14px">
       <div style="font-weight:700;font-size:14px;color:#f87171;margin-bottom:6px">⚠ Problem Reported by Client</div>
-      <div style="font-size:13px;color:#fca5a5;margin-bottom:12px">"${j.problemReport.message}"</div>
+      <div style="font-size:13px;color:#fca5a5;margin-bottom:12px">"${j.problemReport.message||j.problemReport.reason||'No message'}"</div>
       <textarea id="fix-note-${j.id}" rows="2" placeholder="Describe what you fixed…"
         style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:7px;padding:8px 10px;color:#e2e8f0;font-size:12px;font-family:inherit;resize:vertical;margin-bottom:8px"></textarea>
       <button onclick="markProblemFixed('${j.id}')" style="background:#14532d;border:1px solid #34d399;border-radius:8px;padding:9px 18px;color:#86efac;font-size:13px;font-weight:600;cursor:pointer;width:100%">
@@ -700,7 +703,8 @@ function saveStepNote(jobId, secId, stepId, value) {
   if (!step) return;
   // Once job is at or past Awaiting Document Check, keep the step checked
   // even if text is cleared — just save empty text
-  const pastDocCheck = ['Awaiting Document Check','Completed'].includes(job.status) || job.docCheckPending;
+  // Once the step is done, keep it done regardless of text content
+  const pastDocCheck = step.done || ['Awaiting Document Check','Completed'].includes(job.status) || job.docCheckPending;
   const newDone = value.trim().length > 0 || pastDocCheck;
   step.noteText = value;
   step.done = newDone;

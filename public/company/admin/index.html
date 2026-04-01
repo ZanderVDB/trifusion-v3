@@ -196,10 +196,15 @@ async function checkAuth() {
 }
 async function _oldLogout(){ try{ await apiFetch('/api/logout'); }catch(e){} clearAuth(); window.location.href='/'; }
 
+let _sseInstance = null;
 function startSSE(){
-  const token=getAuth()?.token||''; const es=new EventSource(capi('/events')+'?token='+token);
-  es.onmessage=e=>{try{const d=JSON.parse(e.data);if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message')scheduleRefresh();}catch(ex){}};
-  es.onerror=()=>setTimeout(startSSE,5000);
+  if (_sseInstance) { try { _sseInstance.close(); } catch(e){} }
+  const token=getAuth()?.token||'';
+  const es=new EventSource(capi('/events')+'?token='+token);
+  _sseInstance = es;
+  es.onopen    = () => { loadAll(); };
+  es.onmessage = e=>{try{const d=JSON.parse(e.data);if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message')scheduleRefresh();}catch(ex){}};
+  es.onerror   = ()=>setTimeout(startSSE,3000);
 }
 
 async function loadAll(){
