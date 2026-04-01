@@ -191,7 +191,8 @@ function startSSE(){
   const token = getAuth()?.token||'';
   const es = new EventSource(capi('/events')+'?token='+token);
   _sseInstance = es;
-  es.onopen  = () => { loadJobs(); }; // reload on (re)connect
+  let _sseConnected = false;
+  es.onopen = () => { if (!_sseConnected) { _sseConnected=true; loadJobs(); } }; // reload on (re)connect
   es.onmessage = e => { try { const d=JSON.parse(e.data); if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message') scheduleRefresh(); } catch(ex){} };
   es.onerror = () => { setTimeout(startSSE, 3000); };
 }
@@ -492,12 +493,7 @@ function renderDetail(id){
 
   const uploads = ''; // removed — files shown inline in checklist
 
-  const problemBanner = j.problemReport ? `
-    <div style="background:#2a0f0f;border:2px solid #f87171;border-radius:12px;padding:16px 18px;margin-bottom:16px">
-      <div style="font-weight:700;font-size:14px;color:#f87171;margin-bottom:6px">⚠ Client Reported a Problem</div>
-      <div style="font-size:13px;color:#fca5a5;margin-bottom:4px">${j.problemReport.reason}</div>
-      <div style="font-size:11px;color:#64748b">Reported ${j.problemReport.reportedAt}</div>
-    </div>` : '';
+  const problemBanner = ''; // handled inline below
   const confirmedBanner = j.clientConfirmed ? `
     <div style="background:#0a2a1e;border:2px solid #34d399;border-radius:12px;padding:14px 18px;margin-bottom:16px">
       <div style="font-weight:700;font-size:14px;color:#34d399;margin-bottom:4px">🎉 Job Fully Complete</div>
@@ -532,15 +528,15 @@ function renderDetail(id){
     ${threadHTML}
 
     ${isAccepted ? `<div>${checklistHTML}</div>` : `<div style="opacity:.4;pointer-events:none">${checklistHTML}</div>`}
-    ${j.problemReport?.status==='fixed'?`
-// no awaiting admin banner`:j.problemReport?.status==='open'?`
+    ${j.problemReport?.status==='open'?`
     <div style="background:#2a0f0f;border:2px solid #f87171;border-radius:12px;padding:16px 18px;margin-bottom:14px">
-      <div style="font-weight:700;font-size:14px;color:#f87171;margin-bottom:6px">⚠ Problem Reported by Client</div>
+      <div style="font-weight:700;font-size:14px;color:#f87171;margin-bottom:6px">⚠ ${j.problemReport.checkpoint==='documents'?'Document':'System'} Problem — Reported by Client</div>
       <div style="font-size:13px;color:#fca5a5;margin-bottom:12px">"${j.problemReport.message||j.problemReport.reason||'No message'}"</div>
-      <textarea id="fix-note-${j.id}" rows="2" placeholder="Describe what you fixed…"
+      <div style="font-size:11px;color:#475569;margin-bottom:10px">Reported ${j.problemReport.reportedAt}</div>
+      <textarea id="fix-note-${j.id}" rows="2" placeholder="Briefly describe what you did to address this…"
         style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:7px;padding:8px 10px;color:#e2e8f0;font-size:12px;font-family:inherit;resize:vertical;margin-bottom:8px"></textarea>
       <button onclick="markProblemFixed('${j.id}')" style="background:#14532d;border:1px solid #34d399;border-radius:8px;padding:9px 18px;color:#86efac;font-size:13px;font-weight:600;cursor:pointer;width:100%">
-        🔧 I've Fixed This
+        ✓ Notify Client — Issue Addressed
       </button>
     </div>`:''}
     ${(()=>{
@@ -701,20 +697,20 @@ function saveStepNote(jobId, secId, stepId, value) {
   const sec  = job.checklist?.find(s=>s.id===secId);
   const step = sec?.steps.find(s=>s.id===stepId);
   if (!step) return;
-  // Once job is at or past Awaiting Document Check, keep the step checked
-  // even if text is cleared — just save empty text
-  // Once the step is done, keep it done regardless of text content
-  const pastDocCheck = step.done || ['Awaiting Document Check','Completed'].includes(job.status) || job.docCheckPending;
-  const newDone = value.trim().length > 0 || pastDocCheck;
   step.noteText = value;
-  step.done = newDone;
+  // Once done is true, it stays true — removing text doesn't uncheck
+  if (!step.done) step.done = value.trim().length > 0;
   clearTimeout(_noteTimer);
   _noteTimer = setTimeout(async () => {
-    await apiFetch(capi(`/jobs/${jobId}/step`), { method:'POST', body:JSON.stringify({secId, stepId, done: newDone, noteText: value}) });
+    await apiFetch(capi(`/jobs/${jobId}/step`), {
+      method:'POST',
+      body: JSON.stringify({ secId, stepId, done: step.done, noteText: value })
+    });
     _noteJobId = null;
     scheduleRefresh();
   }, 1000);
 }
+
 async function clearNote(jobId, secId, stepId) {
   const res = await apiFetch(capi(`/jobs/${jobId}/step`),{method:'POST',body:JSON.stringify({secId,stepId,done:false,noteText:''})});
   if((await res.json()).ok){

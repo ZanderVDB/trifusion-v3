@@ -242,7 +242,8 @@ function startSSE() {
   const token = getAuth()?.token || '';
   const es = new EventSource(capi('/events')+'?token='+token);
   _sseInstance = es;
-  es.onopen    = () => { loadJobs(); };
+  let _sseConnected = false;
+  es.onopen = () => { if (!_sseConnected) { _sseConnected=true; loadJobs(); } };
   es.onmessage = e => { try { const d=JSON.parse(e.data); if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message') scheduleRefresh(); } catch(ex){} };
   es.onerror   = () => { setTimeout(startSSE, 3000); };
 }
