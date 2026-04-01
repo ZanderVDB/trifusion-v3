@@ -30,12 +30,13 @@
     .hide-mobile{display:none}
     .show-mobile{display:inline}
     .topbar{gap:6px}
-  .topbar-brand { display:flex; flex-direction:column; justify-content:center; line-height:1.3; }
-  .topbar-brand-company { font-size:13px; font-weight:700; color:#f1f5f9; }
-  .topbar-brand-person  { font-size:11px; color:#64748b; font-weight:500; }
-  .topbar-centre { position:absolute; left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; line-height:1.3; }
-  .topbar-service { font-size:12px; font-weight:600; color:#94a3b8; letter-spacing:.04em; }
-  .topbar-portal  { font-size:10px; color:#475569; letter-spacing:.06em; text-transform:uppercase; }
+}
+.topbar-brand { display:flex; flex-direction:column; justify-content:center; line-height:1.3; }
+.topbar-brand-company { font-size:13px; font-weight:700; color:#f1f5f9; }
+.topbar-brand-person  { font-size:11px; color:#64748b; font-weight:500; }
+.topbar-centre { position:absolute; left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; line-height:1.3; }
+.topbar-service { font-size:12px; font-weight:600; color:#94a3b8; letter-spacing:.04em; }
+.topbar-portal  { font-size:10px; color:#475569; letter-spacing:.06em; text-transform:uppercase; }
 </style>
 </head>
 <body>
@@ -178,27 +179,18 @@ async function checkAuth() {
     window.location.href = '/';
     return;
   }
-  // Set topbar — company name top-left, person name below, service centre
-  async function updateTopbar() {
-    const auth = getAuth();
-    const name = auth?.name || 'Admin';
-    // Try fetching company settings for live company name
-    let companyName = auth?.companyName || '';
-    try {
-      const s = await apiFetch(capi('/settings')).then(r=>r.json());
-      if (s?.companyName) companyName = s.companyName;
-    } catch(e) {}
-    const el_company = document.getElementById('topbar-company');
-    const el_person  = document.getElementById('topbar-person');
-    const el_org     = document.getElementById('topbar-org');
-    const el_letter  = document.getElementById('topbar-logo-letter');
-    if (el_company) el_company.textContent = companyName || 'Company';
-    if (el_person)  el_person.textContent  = name;
-    if (el_org)     el_org.textContent     = 'A ' + (companyName||'—') + ' Service';
-    if (el_letter)  el_letter.textContent  = (companyName||name||'?')[0].toUpperCase();
-  }
-  updateTopbar();
-
+  // Set topbar
+  const _auth = getAuth();
+  const _name = _auth?.name || 'Admin';
+  const _comp = _auth?.companyName || '';
+  const el_co = document.getElementById('topbar-company');
+  const el_pe = document.getElementById('topbar-person');
+  const el_or = document.getElementById('topbar-org');
+  const el_ll = document.getElementById('topbar-logo-letter');
+  if (el_co) el_co.textContent = _comp || 'Company';
+  if (el_pe) el_pe.textContent = _name;
+  if (el_or) el_or.textContent = 'A ' + (_comp||'—') + ' Service';
+  if (el_ll) el_ll.textContent = (_comp||_name||'?')[0].toUpperCase();
   loadAll();
   startSSE();
   setInterval(checkUnread,30000);
