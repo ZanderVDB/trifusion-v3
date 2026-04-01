@@ -171,7 +171,7 @@ async function checkAuth() {
   // Set topbar
   const _auth = getAuth();
   const _name = _auth?.name || 'Installer';
-  const _leftComp   = _auth?.installerCompanyName || '';
+  const _leftComp   = _auth?.installerCompanyName || _auth?.name || '';
   const _centreComp = _auth?.companyName || '';
   const el_co = document.getElementById('topbar-company');
   const el_pe = document.getElementById('topbar-person');
@@ -180,7 +180,7 @@ async function checkAuth() {
   if (el_co) el_co.textContent = _leftComp || 'Company';
   if (el_pe) el_pe.textContent = _name;
   if (el_or) el_or.textContent = 'A ' + (_centreComp||'—') + ' Service';
-  if (el_ll) el_ll.textContent = (_auth?.installerCompanyName||' ')[0].toUpperCase();
+  if (el_ll) el_ll.textContent = (_auth?.installerCompanyName||_auth?.name||' ')[0].toUpperCase();
   loadJobs();
   startSSE();
 }

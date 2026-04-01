@@ -247,7 +247,7 @@ app.post('/api/login', (req, res) => {
         installer:        user.installer || null,
         clientId:         user.clientId  || null,
         clientCompanyName: user.companyName || null,
-        installerCompanyName: (user.role==='installer' ? user.companyName||'' : null),
+        installerCompanyName: (user.role==='installer' ? (user.companyName||user.installer||user.name||'') : null),
       };
       saveTokens();
       return res.json({
@@ -1312,8 +1312,8 @@ function seedDatabase() {
       admin:   { username:'admin',   password:'admin123',   role:'admin',     name:'Zander',  companyId:'trifusion', email:'', createdAt:'2025-01-01' },
       david:   { username:'david',   password:'korridor123',role:'client',    name:'David',   clientId:'david',  companyName:'Korridor', companyId:'trifusion', email:'', createdAt:'2025-01-01' },
       natan:   { username:'natan',   password:'korridor456',role:'client',    name:'Natan',   clientId:'natan',  companyName:'Korridor', companyId:'trifusion', email:'', createdAt:'2025-01-01' },
-      brigade: { username:'brigade', password:'brigade123', role:'installer', name:'Brigade', installer:'Brigade', countries:['South Africa'], companyId:'trifusion', email:'', createdAt:'2025-01-01' },
-      zamaka:  { username:'zamaka',  password:'zamaka123',  role:'installer', name:'Zamaka',  installer:'Zamaka',  countries:['Zambia'],       companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+      brigade: { username:'brigade', password:'brigade123', role:'installer', name:'Brigade', installer:'Brigade', companyName:'Brigade', countries:['South Africa'], companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+      zamaka:  { username:'zamaka',  password:'zamaka123',  role:'installer', name:'Zamaka',  installer:'Zamaka',  companyName:'Zamaka',  countries:['Zambia'],       companyId:'trifusion', email:'', createdAt:'2025-01-01' },
     });
     console.log('[SEED] Created Trifusion users');
   }

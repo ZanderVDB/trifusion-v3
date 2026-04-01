@@ -1148,13 +1148,22 @@ async function adminResolveProblem(jobId) {
 }
 
 function openAddRecord() {
-  // Populate client dropdown
-  const sel = document.getElementById('ar-client');
-  if (sel) {
-    const clients = [...new Set(jobs.map(j=>({id:j.clientId,name:j.clientCompanyName||j.clientName||j.clientId})).filter(x=>x.id))];
-    sel.innerHTML = '<option value="">Select client…</option>' +
-      clients.map(cl=>`<option value="${cl.id}">${cl.name}</option>`).join('');
-  }
+  // Populate installer dropdown from users
+  apiFetch(capi('/users')).then(r=>r.json()).then(users=>{
+    const instSel = document.getElementById('ar-installer');
+    if (instSel) {
+      const installers = Object.values(users).filter(u=>u.role==='installer');
+      instSel.innerHTML = '<option value="">Select installer…</option>' +
+        installers.map(u=>`<option value="${u.installer||u.name}">${u.name}${u.companyName?' ('+u.companyName+')':''}</option>`).join('');
+    }
+    // Populate client dropdown from users
+    const clientSel = document.getElementById('ar-client');
+    if (clientSel) {
+      const clients = Object.values(users).filter(u=>u.role==='client');
+      clientSel.innerHTML = '<option value="">Select client…</option>' +
+        clients.map(u=>`<option value="${u.clientId||u.username}">${u.name}${u.companyName?' ('+u.companyName+')':''}</option>`).join('');
+    }
+  }).catch(()=>{});
   // Default dates to today
   const today = new Date().toISOString().slice(0,10);
   document.getElementById('ar-date').value = today;
@@ -1187,7 +1196,7 @@ async function submitAddRecord() {
   const payload = {
     location, date, time, country, completion,
     truck:       document.getElementById('ar-truck').value.trim(),
-    technician:  document.getElementById('ar-technician').value.trim(),
+    technician:  document.getElementById('ar-installer').value,
     clientId:    document.getElementById('ar-client').value,
     serviceType: document.getElementById('ar-service').value,
     unitType:    document.getElementById('ar-unit').value,
@@ -1422,14 +1431,14 @@ checkAuth();
 
 <!-- ADD RECORD MODAL -->
 <div class="modal-overlay" id="add-record-modal" onclick="if(event.target===this)closeAddRecord()">
-  <div class="modal fade-in" style="width:700px;max-height:90vh;overflow-y:auto">
+  <div class="modal fade-in" style="width:min(860px,96vw);max-height:92vh;overflow-y:auto">
     <div class="modal-title">📋 Add Completed Record</div>
     <p style="font-size:13px;color:#64748b;margin-bottom:16px">Manually add a job that was completed outside the system. All checklist steps will be marked as done automatically.</p>
     <div class="form-grid">
       <div class="form-field"><label class="form-label">Location *</label><input class="form-input" id="ar-location" placeholder="e.g. Korridor Lusaka Truck Stop"/></div>
       <div class="form-field"><label class="form-label">Truck Number</label><input class="form-input" id="ar-truck" placeholder="e.g. ABS7267"/></div>
       <div class="form-field"><label class="form-label">Country *</label><input class="form-input" id="ar-country" placeholder="e.g. South Africa"/></div>
-      <div class="form-field"><label class="form-label">Technician</label><input class="form-input" id="ar-technician" placeholder="e.g. Brigade"/></div>
+      <div class="form-field"><label class="form-label">Installer</label><select class="form-input" id="ar-installer"><option value="">Select installer…</option></select></div>
       <div class="form-field"><label class="form-label">Client</label>
         <select class="form-input" id="ar-client"><option value="">Select client…</option></select>
       </div>
