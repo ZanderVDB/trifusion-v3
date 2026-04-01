@@ -655,7 +655,7 @@ app.post('/api/:companyId/jobs/record', requireCompanyAuth('admin'), (req, res) 
   const cid = req.params.companyId;
   const { location, date, time, country, truck, technician, clientId,
           serviceType, unitType, notes, completion } = req.body;
-  if (!location || !date || !country) return res.json({ ok:false, error:'Location, date and country required' });
+  if (!location || !date) return res.json({ ok:false, error:'Location and date are required' });
 
   const users = getCompanyUsers(cid);
   const clientUser = clientId ? Object.values(users).find(u=>u.clientId===clientId) : null;
