@@ -476,11 +476,11 @@ function renderDetail(id) {
             <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Truck</div>
             ${j.truck && j.truckConfirmed
               ? `<div style="font-size:13px;color:#e2e8f0;font-weight:500">${j.truck}</div>`
-              : `<div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+              : `${j.clientConfirmed ? '' : `<div style="display:flex;align-items:center;gap:6px;margin-top:2px">
                   <input id="truck-edit-${j.id}" value="${j.truck||''}" placeholder="Enter truck no."
                     style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:5px 8px;color:#e2e8f0;font-size:12px;width:110px;outline:none"/>
                   <button onclick="saveTruck('${j.id}')" style="background:#0c2a3a;border:1px solid #38bdf8;border-radius:6px;padding:5px 10px;color:#38bdf8;font-size:11px;cursor:pointer">✓ Save</button>
-                </div>`}
+                </div>`}`}
           </div>
         </div>
       </div>
@@ -519,7 +519,10 @@ function renderActionCard(j) {
   if (j.clientConfirmed) return '';
   const installDone = j.checklist?.find(s=>s.id==='service')?.steps.find(s=>s.id==='service_complete')?.done;
   if (!installDone && !j.systemCheckPending && !j.systemOk) return '';
-  const docsDone = j.checklist?.find(s=>s.id==='documents')?.steps.filter(x=>!x.skipped&&!x.isTextNote).every(x=>x.done);
+  const _docSec = j.checklist?.find(s=>s.id==='documents');
+  const docUploadsDone = _docSec?.steps.filter(x=>x.requiresUpload&&!x.isTextNote).every(x=>x.done);
+  const docNotesDone   = _docSec?.steps.filter(x=>x.isTextNote).every(x=>x.done||x.skipped);
+  const docsDone = !!(docUploadsDone && docNotesDone);
 
   // Show problem-reported state
   if (j.problemReport?.status === 'open') return `

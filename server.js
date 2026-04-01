@@ -653,9 +653,13 @@ app.put('/api/:companyId/jobs/:id', requireCompanyAuth('admin'), (req, res) => {
 });
 
 app.delete('/api/:companyId/jobs/:id', requireCompanyAuth('admin'), (req, res) => {
-  const cid  = req.params.companyId;
-  const jobs = getCompanyJobs(cid).filter(j=>j.id!==req.params.id);
+  const cid    = req.params.companyId;
+  const jobId  = req.params.id;
+  const jobs   = getCompanyJobs(cid).filter(j=>j.id!==jobId);
   saveCompanyJobs(cid, jobs);
+  // Delete associated messages
+  const msgs = getMessages(cid).filter(m=>m.job_id!==jobId);
+  saveMessages(cid, msgs);
   broadcast(cid, { type:'refresh' });
   res.json({ ok:true });
 });
@@ -693,7 +697,7 @@ app.post('/api/:companyId/jobs/:id/step', requireCompanyAuth(), (req, res) => {
     if (step) {
       if (typeof done    !== 'undefined') step.done    = done;
       if (typeof skipped !== 'undefined') step.skipped = skipped;
-      if (typeof noteText!== 'undefined') { step.noteText = noteText; step.done = noteText.trim().length > 0; }
+      if (typeof noteText!== 'undefined') { step.noteText = noteText; if (!step.done) step.done = noteText.trim().length > 0; }
     }
     // Re-check docCheckPending whenever a doc step changes
     if (secId === 'documents') {
@@ -1108,6 +1112,11 @@ app.get('/api/:companyId/messages', requireCompanyAuth('admin'), (req, res) => {
 app.get('/api/:companyId/messages/unread', requireCompanyAuth('admin'), (req, res) => {
   const msgs = getMessages(req.params.companyId);
   res.json({ count: msgs.filter(m=>!m.read).length });
+});
+
+app.delete('/api/:companyId/messages', requireCompanyAuth('admin'), (req, res) => {
+  saveMessages(req.params.companyId, []);
+  res.json({ ok:true });
 });
 
 app.post('/api/:companyId/messages/read', requireCompanyAuth('admin'), (req, res) => {
