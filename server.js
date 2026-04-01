@@ -1220,6 +1220,67 @@ app.get('/:cid/client',    (req,res) => res.sendFile(path.join(PUBLIC_DIR,'compa
 app.get('/:cid/installer', (req,res) => res.sendFile(path.join(PUBLIC_DIR,'company','installer','index.html')));
 
 // ── START ─────────────────────────────────────────────────────────────────────
+// ── Database seed (runs on startup if DB is empty) ────────────────────────────
+function seedDatabase() {
+  // Seed superadmin
+  const hqFile = path.join(DB_DIR, 'superadmin', 'hq.json');
+  fs.mkdirSync(path.dirname(hqFile), { recursive: true });
+  if (!fs.existsSync(hqFile)) {
+    writeJSON(hqFile, { username:'webancherhq', password:'hq@WebAncher2025', name:'WebAncher HQ', resendApiKey:'' });
+    console.log('[SEED] Created HQ credentials');
+  }
+
+  const companiesFile = path.join(DB_DIR, 'superadmin', 'companies.json');
+  if (!fs.existsSync(companiesFile)) {
+    writeJSON(companiesFile, [{ companyId:'trifusion', companyName:'Trifusion', adminName:'Zander', status:'active', createdAt:'2025-01-01' }]);
+    console.log('[SEED] Created companies');
+  }
+
+  // Seed Trifusion company
+  const trifDir = path.join(DB_DIR, 'companies', 'trifusion');
+  fs.mkdirSync(trifDir, { recursive: true });
+
+  const usersFile = path.join(trifDir, 'users.json');
+  if (!fs.existsSync(usersFile)) {
+    writeJSON(usersFile, {
+      admin:   { username:'admin',   password:'admin123',   role:'admin',     name:'Zander',  companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+      david:   { username:'david',   password:'korridor123',role:'client',    name:'David',   clientId:'david',  companyName:'Korridor', companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+      natan:   { username:'natan',   password:'korridor456',role:'client',    name:'Natan',   clientId:'natan',  companyName:'Korridor', companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+      brigade: { username:'brigade', password:'brigade123', role:'installer', name:'Brigade', installer:'Brigade', countries:['South Africa'], companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+      zamaka:  { username:'zamaka',  password:'zamaka123',  role:'installer', name:'Zamaka',  installer:'Zamaka',  countries:['Zambia'],       companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+    });
+    console.log('[SEED] Created Trifusion users');
+  }
+
+  const settingsFile = path.join(trifDir, 'settings.json');
+  if (!fs.existsSync(settingsFile)) {
+    writeJSON(settingsFile, { companyName:'Trifusion', adminName:'Zander', branding:{}, emails:{}, jobCounter:0 });
+    console.log('[SEED] Created Trifusion settings');
+  }
+
+  const jobsFile = path.join(trifDir, 'jobs.json');
+  if (!fs.existsSync(jobsFile)) {
+    writeJSON(jobsFile, []);
+    console.log('[SEED] Created empty jobs file');
+  }
+
+  const tokensFile = path.join(DB_DIR, 'superadmin', 'tokens.json');
+  if (!fs.existsSync(tokensFile)) {
+    writeJSON(tokensFile, {});
+    console.log('[SEED] Created tokens file');
+  }
+
+  const signupsFile = path.join(DB_DIR, 'superadmin', 'signups.json');
+  if (!fs.existsSync(signupsFile)) {
+    writeJSON(signupsFile, []);
+  }
+
+  console.log('[SEED] Database check complete');
+}
+
+seedDatabase();
+
+
 app.listen(PORT, () => {
   console.log('╔════════════════════════════════════════╗');
   console.log('║   Trifusion Platform v2                ║');
