@@ -1276,6 +1276,7 @@ async function saveOwnCredentials() {
   const body = {};
   if (newPassword) body.password = newPassword;
   if (newUsername) body.newUsername = newUsername;
+  if (newEmail) body.email = newEmail;
   const res  = await apiFetch(capi('/users/'+auth.username+'/credentials'), { method:'POST', body:JSON.stringify(body) });
   const data = await res.json();
   if (data.ok) {

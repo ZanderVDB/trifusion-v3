@@ -1390,8 +1390,9 @@ app.post('/api/:companyId/users/:username/credentials', requireCompanyAuth('admi
   const users = getCompanyUsers(cid);
   const user  = users[req.params.username];
   if (!user) return res.json({ ok:false, error:'User not found' });
-  const { newUsername, password } = req.body;
+  const { newUsername, password, email } = req.body;
   if (password) user.password = password;
+  if (email) user.email = email;
   if (newUsername && newUsername !== req.params.username) {
     if (users[newUsername]) return res.json({ ok:false, error:'Username already taken' });
     users[newUsername] = { ...user, username:newUsername };
@@ -1399,9 +1400,15 @@ app.post('/api/:companyId/users/:username/credentials', requireCompanyAuth('admi
     // Update token
     const auth = req.headers['authorization']||'';
     const token = auth.replace('Bearer ','').trim();
-    if (tokenStore[token]) { tokenStore[token].username = newUsername; saveTokens(); }
+    if (tokenStore[token]) { tokenStore[token].username = newUsername; if (email) tokenStore[token].email = email; saveTokens(); }
   } else {
     users[req.params.username] = user;
+    // Update token email immediately
+    if (email) {
+      const auth2 = req.headers['authorization']||'';
+      const tok2 = auth2.replace('Bearer ','').trim();
+      if (tokenStore[tok2]) { tokenStore[tok2].email = email; saveTokens(); }
+    }
   }
   saveCompanyUsers(cid, users);
   res.json({ ok:true });
@@ -1421,6 +1428,12 @@ app.post('/api/hq/companies/:companyId/users/:username/credentials', requireAuth
     delete users[req.params.username];
   } else {
     users[req.params.username] = user;
+    // Update token email immediately
+    if (email) {
+      const auth2 = req.headers['authorization']||'';
+      const tok2 = auth2.replace('Bearer ','').trim();
+      if (tokenStore[tok2]) { tokenStore[tok2].email = email; saveTokens(); }
+    }
   }
   saveCompanyUsers(cid, users);
   res.json({ ok:true });
