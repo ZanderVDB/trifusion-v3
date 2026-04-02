@@ -1220,7 +1220,8 @@ async function saveOwnCredentials() {
   const newUsername = document.getElementById('s-own-username')?.value.trim();
   const newPassword = document.getElementById('s-own-password')?.value;
   const msgEl = document.getElementById('s-own-msg');
-  if (!newUsername && !newPassword) { msgEl.style.color='#f87171'; msgEl.textContent='Enter a new username or password.'; return; }
+  const newEmail = document.getElementById('s-own-email')?.value.trim();
+  if (!newUsername && !newPassword && !newEmail) { msgEl.style.color='#f87171'; msgEl.textContent='Enter a new username, password, or email.'; return; }
   const auth = getAuth();
   const body = {};
   if (newPassword) body.password = newPassword;

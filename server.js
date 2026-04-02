@@ -1383,6 +1383,21 @@ app.post('/api/test-email', requireAuth(), async (req, res) => {
   else res.json({ ok:false, error:result.error });
 });
 
+
+// Helper to get user email from company DB
+function getUserEmail(cid, identifier) {
+  const users = getCompanyUsers(cid);
+  // Try by clientId, username, installer name
+  const u = Object.values(users).find(u =>
+    u.clientId === identifier || u.username === identifier ||
+    u.installer === identifier || u.name === identifier
+  );
+  return u?.email || '';
+}
+
+function jobLink(html) {
+  return html + `<p style="margin-top:16px"><a href="https://web-production-49349.up.railway.app" style="background:#1e4d8c;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open Trifusion Portal →</a></p>`;
+}
 // ── PAGE ROUTES ───────────────────────────────────────────────────────────────
 app.get('/',         (req,res) => res.sendFile(path.join(PUBLIC_DIR,'login.html')));
 app.get('/signup',   (req,res) => res.sendFile(path.join(PUBLIC_DIR,'signup','index.html')));
