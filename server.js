@@ -297,7 +297,14 @@ app.get('/api/me', (req, res) => {
     if (dbUser?.companyName) freshCompanyName = dbUser.companyName;
     else if (dbUser?.installer) freshCompanyName = dbUser.installer;
   }
-  res.json({ loggedIn:true, ...user, companyName: freshCompanyName });
+  // Always read fresh email from DB so it updates without re-login
+  let freshEmail = user.email || null;
+  if (user.companyId && user.username) {
+    const dbUsers = getCompanyUsers(user.companyId);
+    const dbUser  = dbUsers[user.username];
+    if (dbUser?.email) freshEmail = dbUser.email;
+  }
+  res.json({ loggedIn:true, ...user, companyName: freshCompanyName, email: freshEmail });
 });
 
 // ── SIGNUP ────────────────────────────────────────────────────────────────────

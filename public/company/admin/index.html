@@ -219,6 +219,15 @@ async function checkAuth() {
   if (el_pe) el_pe.textContent = _name;
   if (el_or) el_or.textContent = 'A ' + (_centreComp||'—') + ' Service';
   if (el_ll) el_ll.textContent = (_auth?.companyName||'?')[0].toUpperCase();
+  // Refresh email from server so it stays current without re-login
+  try {
+    const meRes = await apiFetch('/api/me');
+    const meData = await meRes.json();
+    if (meData.loggedIn && meData.email) {
+      const stored = getAuth();
+      if (stored) { stored.email = meData.email; setAuth(stored); }
+    }
+  } catch(e) {}
   loadAll();
   startSSE();
   setInterval(checkUnread,30000);
@@ -1189,7 +1198,10 @@ async function loadSettings() {
             </div>
             <div>
               <label class="form-label">New Password</label>
-              <input class="form-input" id="s-own-password" type="password" placeholder="Leave blank to keep"/>
+              <div style="position:relative">
+                <input class="form-input" id="s-own-password" type="password" placeholder="Leave blank to keep" style="padding-right:36px"/>
+                <button type="button" onclick="(function(){const i=document.getElementById('s-own-password');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'}).call(this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:14px;color:#64748b;padding:0;line-height:1">👁</button>
+              </div>
             </div>
           </div>
         </div>
