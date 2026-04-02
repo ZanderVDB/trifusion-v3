@@ -979,9 +979,9 @@ async function loadUsers() {
       <div id="view-${u.username}" style="display:none;padding:0 16px 14px;border-top:1px solid #1e293b">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
           ${[
+            ['Company',      u.companyName||'—'],
             ['Full Name',    u.name],
             ['Username',     u.username],
-            ['Company',      u.companyName||'—'],
             ['Email',        u.email||'—'],
             ['Password',     u.password||'—'],
             ...(isClient ? [] : [['Countries', (u.countries||[]).join(', ')||'—']]),
