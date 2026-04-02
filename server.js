@@ -703,11 +703,11 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), async (req, res) => {
     if (clientUser?.email) {
       const cInfo = `<strong>Job:</strong> ${id}<br><strong>Location:</strong> ${location}<br><strong>Date:</strong> ${date} at ${time}<br><strong>Service:</strong> ${serviceType||'Installation'}${unitType?' — '+unitType:''}<br><strong>Assigned installer:</strong> ${assignedTechnician||'To be assigned'}`;
       const byAdmin = req.user.role === 'admin';
-      const cSubject = byAdmin ? `New Service Scheduled For You — ${id}` : `New Service Request Confirmed — ${id}`;
-      const cHeading = byAdmin ? 'A new service has been scheduled for you' : 'Your new service request has been confirmed';
+      const cSubject = byAdmin ? `New Service Scheduled For You — ${id}` : `Service Request Received — ${id}`;
+      const cHeading = byAdmin ? 'A new service has been scheduled for you' : 'Your service request has been received';
       const cBody    = byAdmin
         ? `Your account manager has scheduled a ${serviceType||'installation'} at ${location}. Log in to track progress.`
-        : `Your ${serviceType||'installation'} request at ${location} has been received and confirmed. Log in to track progress.`;
+        : `Your ${serviceType||'installation'} request at ${location} has been received and is being arranged. Log in to track progress.`;
       sendEmail({ to:clientUser.email, subject:cSubject, html:jobLink(jobEmailHtml(cHeading, cBody, cInfo)) });
     }
   }
@@ -898,7 +898,7 @@ app.post('/api/:companyId/jobs/:id/system-ok', requireCompanyAuth('client'), (re
 });
 
 // Client confirms documents
-app.post('/api/:companyId/jobs/:id/confirm-ok', requireCompanyAuth('client'), (req, res) => {
+app.post('/api/:companyId/jobs/:id/confirm-ok', requireCompanyAuth('client'), async (req, res) => {
   const cid = req.params.companyId;
   const job = jobAction(cid, req.params.id, (job) => {
     job.clientConfirmed   = true;
@@ -1003,7 +1003,7 @@ app.post('/api/:companyId/jobs/:id/problem-resolved', requireCompanyAuth('admin'
 });
 
 // Truck unavailable
-app.post('/api/:companyId/jobs/:id/truck-unavailable', requireCompanyAuth('installer'), (req, res) => {
+app.post('/api/:companyId/jobs/:id/truck-unavailable', requireCompanyAuth('installer'), async (req, res) => {
   const cid = req.params.companyId;
   const { reason } = req.body;
   if (!reason || !reason.trim()) return res.json({ ok:false, error:'Please provide a reason.' });
