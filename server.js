@@ -248,6 +248,7 @@ app.post('/api/login', (req, res) => {
         clientId:         user.clientId  || null,
         clientCompanyName: user.companyName || null,
         installerCompanyName: (user.role==='installer' ? (user.companyName||user.installer||user.name||'') : null),
+        email: user.email || null,
       };
       saveTokens();
       return res.json({
@@ -259,7 +260,8 @@ app.post('/api/login', (req, res) => {
         installer: user.installer || null,
         clientId:  user.clientId  || null,
         clientCompanyName: user.companyName || null,
-        token
+        token,
+        email: user.email || null,
       });
     }
   }
@@ -677,6 +679,15 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
   console.log(`[JOB SAVED] ${id} technician=${job.technician||'UNASSIGNED'} needsAssignment=${job.needsAssignment}`);
   addMessage(cid, id, 'job_created', `New job created: ${job.location} (${job.country}) for ${job.clientCompanyName||job.clientName}`, 'system');
   broadcast(cid, { type:'refresh' });
+  // Email assigned installer about new job
+  if (assignedTechnician) {
+    const instEmail = getUserEmail(cid, assignedTechnician);
+    if (instEmail) {
+      const cu = clientId ? Object.values(users).find(u=>u.clientId===clientId) : null;
+      const info = `<strong>Job:</strong> ${id}<br><strong>Location:</strong> ${location}<br><strong>Date:</strong> ${date} at ${time}<br><strong>Service:</strong> ${serviceType||'Installation'}${unitType?' — '+unitType:''}<br><strong>Client:</strong> ${cu?.companyName||cu?.name||''}`;
+      sendEmail({ to:instEmail, subject:`New Job Assigned — ${id}`, html:jobLink(jobEmailHtml('New Job Assigned', 'A new service job has been assigned to you. Please log in to accept and review the details.', info)) });
+    }
+  }
   res.json({ ok:true, id });
 });
 

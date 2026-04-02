@@ -268,7 +268,7 @@ function setMainTab(tab,el){
   if(tab==='messages') loadMessages();
   if(tab==='jobs') renderJobsTab();
   if(tab==='users') loadUsers();
-  if(tab==='settings') loadSettings();
+  if(tab==='settings') { loadSettings(); populateCurrentCredentials(); }
 }
 
 const STATUS_META = {
@@ -1125,6 +1125,17 @@ async function deleteUser(username, name) {
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 let _settings = {};
+function populateCurrentCredentials() {
+  const auth = getAuth();
+  if (!auth) return;
+  const uEl = document.getElementById('s-cur-username');
+  const eEl = document.getElementById('s-cur-email');
+  if (uEl) uEl.textContent = auth.username || '—';
+  if (eEl) eEl.textContent = auth.email || '(not set)';
+  // Pre-fill email field with current value
+  const emailField = document.getElementById('s-own-email');
+  if (emailField && auth.email) emailField.value = auth.email;
+}
 async function loadSettings() {
   const res = await apiFetch(capi('/settings'));
   _settings = await res.json();
@@ -1138,7 +1149,12 @@ async function loadSettings() {
 
       <!-- Change own credentials -->
       <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px;margin-bottom:20px">
-        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:16px">🔐 Your Login Credentials</div>
+        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:8px">🔐 Your Login Credentials</div>
+        <div id="s-current-info" style="background:#0a1220;border:1px solid #1e293b;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#64748b;display:grid;grid-template-columns:auto 1fr;gap:4px 12px">
+          <span>Username:</span><span id="s-cur-username" style="color:#e2e8f0;font-family:monospace">—</span>
+          <span>Email:</span><span id="s-cur-email" style="color:#e2e8f0;font-family:monospace">—</span>
+          <span>Password:</span><span style="color:#475569">••••••••</span>
+        </div>
         <div class="form-grid">
           <div class="form-field" style="grid-column:1/-1">
             <label class="form-label">Your Email Address</label>
@@ -1234,8 +1250,17 @@ async function saveOwnCredentials() {
   const res  = await apiFetch(capi('/users/'+auth.username+'/credentials'), { method:'POST', body:JSON.stringify(body) });
   const data = await res.json();
   if (data.ok) {
-    msgEl.style.color='#34d399'; msgEl.textContent='Updated! Please sign in again.';
-    setTimeout(() => { clearAuth(); window.location.href='/'; }, 1500);
+    // Update local auth with new email if changed
+    if (newEmail) { const stored = getAuth(); if (stored) { stored.email = newEmail; setAuth(stored); } }
+    msgEl.style.color='#34d399';
+    if (newUsername || newPassword) {
+      msgEl.textContent = 'Updated! Signing you out…';
+      setTimeout(() => { clearAuth(); window.location.href='/'; }, 1500);
+    } else {
+      msgEl.textContent = 'Email saved!';
+      populateCurrentCredentials();
+      setTimeout(() => { msgEl.textContent = ''; }, 2000);
+    }
   } else { msgEl.style.color='#f87171'; msgEl.textContent=data.error||'Error'; }
 }
 

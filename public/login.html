@@ -86,7 +86,8 @@ async function doLogin() {
               companyId:data.companyId||null, companyName:data.companyName||null,
               installer:data.installer||null, clientId:data.clientId||null,
               clientCompanyName:data.clientCompanyName||null,
-              installerCompanyName:data.installerCompanyName||null });
+              installerCompanyName:data.installerCompanyName||null,
+              email:data.email||null });
     redirectUser(data);
   } catch(e) {
     errEl.textContent = 'Could not connect to server.';
