@@ -144,7 +144,7 @@ function jobUrgencyStyle(job){
   return '';
 }
 
-let jobs=[], currentJobId=null, currentTab='needs-attention', myInstaller='';
+let jobs=[], currentJobId=null, _iTab='needs-attention', myInstaller='';
 
 
 
@@ -277,7 +277,7 @@ function getJobBadge(j) {
 function progressOf(cl){if(!cl)return{done:0,total:0};const all=cl.flatMap(s=>s.steps.filter(x=>!x.skipped));return{done:all.filter(x=>x.done).length,total:all.length};}
 
 function setTab(tab,el){
-  currentTab=tab;
+  _iTab=tab;
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
   const filt = document.getElementById('all-filters');
@@ -291,7 +291,7 @@ function renderDashboard(){
   document.getElementById('tc-active').textContent=jobs.filter(j=>j.status!=='Completed').length;
   document.getElementById('tc-completed').textContent=jobs.filter(j=>j.status==='Completed').length;
   document.getElementById('tc-all').textContent=jobs.length;
-  if (currentTab==='active') {
+  if (_iTab==='active') {
     renderSplitOverview();
   } else {
     const el=document.getElementById('job-list');
@@ -349,7 +349,7 @@ function renderSplitOverview(){
 
 function renderJobList(){
   let list;
-  if (currentTab==='needs-attention') {
+  if (_iTab==='needs-attention') {
     list = jobs.filter(j=>j.status!=='Completed' && (
       j.truckUnavailable || j.problemReport?.status==='open' ||
       j.rescheduleProposal?.status==='pending' ||
@@ -357,11 +357,11 @@ function renderJobList(){
       j.status==='Pending Acceptance' ||
       jobUrgencyStyle(j).length > 0
     ));
-  } else if (currentTab==='active') {
+  } else if (_iTab==='active') {
     list = jobs.filter(j=>j.status!=='Completed');
-  } else if (currentTab==='completed') {
+  } else if (_iTab==='completed') {
     list = jobs.filter(j=>j.status==='Completed');
-  } else if (currentTab==='all') {
+  } else if (_iTab==='all') {
     list = [...jobs];
     const q  = document.getElementById('inst-search')?.value.toLowerCase()||'';
     const fs = document.getElementById('inst-filter-status')?.value||'';
@@ -921,7 +921,7 @@ initPortal();
 // Ensure correct layout on load using RAF to run after all sync code
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
-    if (currentTab === 'active') {
+    if (_iTab === 'active') {
       renderSplitOverview();
     }
   });

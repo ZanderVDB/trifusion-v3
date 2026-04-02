@@ -1140,6 +1140,11 @@ async function loadSettings() {
       <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px;margin-bottom:20px">
         <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:16px">🔐 Your Login Credentials</div>
         <div class="form-grid">
+          <div class="form-field" style="grid-column:1/-1">
+            <label class="form-label">Your Email Address</label>
+            <input class="form-input" id="s-own-email" type="email" placeholder="your@email.com"/>
+            <div style="font-size:11px;color:#475569;margin-top:4px">Used for system notifications and test emails.</div>
+          </div>
           <div class="form-field">
             <label class="form-label">New Username</label>
             <input class="form-input" id="s-own-username" placeholder="Leave blank to keep current"/>
