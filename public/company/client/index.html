@@ -71,6 +71,7 @@
       </select>
     </div>
   </div>
+  <div id="split-overview" style="display:none"></div>
   <div id="job-list"></div>
 </div>
 
@@ -345,8 +346,8 @@ function renderDashboard() {
 function renderClientSplitOverview(){
   const el=document.getElementById('job-list');
   if(el) el.style.display='none';
-  let ov=document.getElementById('split-overview');
-  if(!ov){ov=document.createElement('div');ov.id='split-overview';el?.parentNode?.insertBefore(ov,el);}
+  const ov=document.getElementById('split-overview');
+  if(!ov) return;
   ov.style.display='block';
 
   const needsAttn = jobs.filter(j=>j.status!=='Completed'&&(
