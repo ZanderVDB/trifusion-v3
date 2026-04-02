@@ -965,10 +965,10 @@ async function loadUsers() {
     return `<div style="background:#0a1220;border:1px solid #1e293b;border-radius:10px;margin-bottom:8px;overflow:hidden">
       <!-- Summary row -->
       <div style="padding:14px 16px;display:flex;align-items:center;gap:12px">
-        <div style="width:36px;height:36px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;font-weight:700;color:${color};flex-shrink:0">${u.name[0].toUpperCase()}</div>
+        <div style="width:36px;height:36px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;font-weight:700;color:${color};flex-shrink:0">${(u.companyName||u.name)[0].toUpperCase()}</div>
         <div style="flex:1;min-width:0">
-          <div style="font-weight:600;color:#f1f5f9">${u.name}</div>
-          <div style="font-size:12px;color:#64748b">${detail}</div>
+          <div style="font-weight:700;color:#f1f5f9">${u.companyName||u.name}</div>
+          <div style="font-size:12px;color:#94a3b8">${u.name}</div>
         </div>
         <div style="font-family:monospace;font-size:11px;color:#475569;margin-right:8px">@${u.username}</div>
         <button style="background:#1e293b;border:none;border-radius:6px;padding:5px 12px;color:#94a3b8;font-size:11px;cursor:pointer" onclick="toggleEditUser('${u.username}')">✏️ Edit</button>
@@ -998,20 +998,20 @@ async function loadUsers() {
       <div id="edit-${u.username}" style="display:none;padding:0 16px 16px;border-top:1px solid #1e293b">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
           <div class="form-field">
-            <label class="form-label">Full Name</label>
-            <input class="form-input" id="eu-name-${u.username}" value="${u.name}" style="font-size:12px;padding:7px 10px"/>
-          </div>
-          <div class="form-field">
-            <label class="form-label">Username</label>
-            <input class="form-input" id="eu-username-${u.username}" value="${u.username}" style="font-size:12px;padding:7px 10px"/>
-          </div>
-          <div class="form-field">
             <label class="form-label">Company Name</label>
             <input class="form-input" id="eu-company-${u.username}" value="${u.companyName||''}" style="font-size:12px;padding:7px 10px"/>
           </div>
           <div class="form-field">
             <label class="form-label">Email</label>
             <input class="form-input" id="eu-email-${u.username}" value="${u.email||''}" placeholder="email@example.com" style="font-size:12px;padding:7px 10px"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Full Name</label>
+            <input class="form-input" id="eu-name-${u.username}" value="${u.name}" style="font-size:12px;padding:7px 10px"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Username</label>
+            <input class="form-input" id="eu-username-${u.username}" value="${u.username}" style="font-size:12px;padding:7px 10px"/>
           </div>
           ${!isClient ? `<div class="form-field" style="grid-column:1/-1"><label class="form-label">Countries (comma separated)</label><input class="form-input" id="eu-countries-${u.username}" value="${(u.countries||[]).join(', ')}" placeholder="e.g. South Africa, Zambia" style="font-size:12px;padding:7px 10px"/></div>` : ''}
           <div class="form-field">

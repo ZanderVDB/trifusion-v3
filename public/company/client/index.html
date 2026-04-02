@@ -275,7 +275,7 @@ async function loadJobs() {
 // ── Status helpers ────────────────────────────────────────────────────────────
 const STATUS_META = {
   'Pending Acceptance':      {color:'#fca5a5', bg:'#2a0f0f', dot:'#fca5a5'},
-  'In Progress':             {color:'#4ade80', bg:'#0a2a1e', dot:'#4ade80'},
+  'In Progress':             {color:'#fbbf24', bg:'#2d1a00', dot:'#fbbf24'},
   'Awaiting System Check':   {color:'#38bdf8', bg:'#0c2a3a', dot:'#38bdf8'},
   'Waiting for Docs':        {color:'#fb923c', bg:'#2d1a0a', dot:'#fb923c'},
   'Awaiting Document Check': {color:'#a78bfa', bg:'#1e1130', dot:'#a78bfa'},
@@ -320,7 +320,7 @@ function setTab(tab, el) {
   el.classList.add('active');
   const filt = document.getElementById('cl-all-filters');
   if (filt) filt.style.display = tab==='all' ? 'block' : 'none';
-  renderJobList();
+  renderDashboard();
 }
 
 function renderDashboard() {
