@@ -586,15 +586,27 @@ app.get('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
   const cid  = req.params.companyId;
   const user = req.user;
   let jobs   = getCompanyJobs(cid);
+  const users = getCompanyUsers(cid);
+
+  // Enrich jobs with live client/installer names from current user DB
+  jobs = jobs.map(j => {
+    const clientUser = j.clientId ? Object.values(users).find(u=>u.clientId===j.clientId) : null;
+    if (clientUser) {
+      j = { ...j,
+        clientName:        clientUser.name        || j.clientName,
+        clientCompanyName: clientUser.companyName || j.clientCompanyName,
+      };
+    }
+    return j;
+  });
 
   if (user.role === 'installer') {
-    const myName      = user.installer || user.name || '';
+    const myName = user.installer || user.name || '';
     jobs = jobs.filter(j => j.technician && (
-      j.technician === myName ||
-      j.technician === user.name
+      j.technician === myName || j.technician === user.name
     ));
   }
-  if (user.role === 'client')    jobs = jobs.filter(j=>j.clientId===user.clientId);
+  if (user.role === 'client') jobs = jobs.filter(j=>j.clientId===user.clientId);
 
   // Update statuses
   jobs = jobs.map(j => ({ ...j, status: computeStatus(j) }));

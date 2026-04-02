@@ -53,8 +53,7 @@
   <div id="proposal-alerts"></div>
 
   <div class="tabs">
-    <button class="tab-btn active" onclick="setTab('needs-attention',this)">🔴 Needs Attention<span class="tab-count" id="tc-needs-attention" style="background:#f87171">0</span></button>
-    <button class="tab-btn" onclick="setTab('active',this)">Active<span class="tab-count" id="tc-active">0</span></button>
+    <button class="tab-btn active" onclick="setTab('active',this)">Active<span class="tab-count" id="tc-active">0</span></button>
     <button class="tab-btn" onclick="setTab('completed',this)">Completed<span class="tab-count" id="tc-completed">0</span></button>
     <button class="tab-btn" onclick="setTab('all',this)">All<span class="tab-count" id="tc-all">0</span></button>
   </div>
@@ -191,7 +190,7 @@ function jobUrgencyStyle(job){
   if(diffMins > 60 && diffMins <= 180) return 'border-color:rgba(56,189,248,.5);box-shadow:0 0 0 1px rgba(56,189,248,.2);';
   return '';
 }
-let jobs = [], currentJobId = null, currentTab = 'needs-attention';
+let jobs = [], currentJobId = null, currentTab = 'active';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -289,7 +288,7 @@ function badgeHTML(s) {
   return `<span class="badge" style="background:${m.bg};color:${m.color};border:1px solid ${m.color}30"><span class="badge-dot" style="background:${m.dot}"></span>${s}</span>`;
 }
 function getJobBadge(j) {
-  if (j.forceCompleted) return '<span class="badge" style="background:#1a1a0a;color:#fbbf24;border:1px solid #fbbf24">⚠ Completed by Admin</span>';
+  if (j.forceCompleted) return '<span class="badge" style="background:#2d1209;color:#fb923c;border:1px solid #fb923c">⚠ Closed by Admin</span>';
   if (j.clientConfirmed) return badgeHTML('Completed');
   if (j.needsAssignment && !j.technician) return '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">⚠ Needs Installer Assignment</span>';
   if (j.truckUnavailable) {
@@ -325,29 +324,66 @@ function setTab(tab, el) {
 }
 
 function renderDashboard() {
-  if(currentTab==='active')currentTab='needs-attention';
   currentJobId = null;
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('detail-view').style.display = 'none';
-
   document.getElementById('proposal-alerts').innerHTML = '';
-  const _cNeedsAttn = jobs.filter(j=>j.status!=='Completed'&&(j.truckUnavailable||j.problemReport?.status==='open'||j.rescheduleProposal?.status==='pending'||j.status==='Awaiting System Check'||j.status==='Awaiting Document Check'));
-  document.getElementById('tc-needs-attention') && (document.getElementById('tc-needs-attention').textContent=_cNeedsAttn.length);
   document.getElementById('tc-active').textContent = jobs.filter(j=>j.status!=='Completed').length;
   document.getElementById('tc-completed').textContent = jobs.filter(j=>j.status==='Completed').length;
   const tcAll = document.getElementById('tc-all'); if(tcAll) tcAll.textContent = jobs.length;
-  renderJobList();
+  if (currentTab==='active') {
+    renderClientSplitOverview();
+  } else {
+    const el=document.getElementById('job-list');
+    if(el) el.style.display='block';
+    const ov=document.getElementById('split-overview');
+    if(ov) ov.style.display='none';
+    renderJobList();
+  }
+}
+
+function renderClientSplitOverview(){
+  const el=document.getElementById('job-list');
+  if(el) el.style.display='none';
+  let ov=document.getElementById('split-overview');
+  if(!ov){ov=document.createElement('div');ov.id='split-overview';el?.parentNode?.insertBefore(ov,el);}
+  ov.style.display='block';
+
+  const needsAttn = jobs.filter(j=>j.status!=='Completed'&&(
+    j.truckUnavailable||j.problemReport?.status==='open'||
+    j.rescheduleProposal?.status==='pending'||
+    j.status==='Awaiting System Check'||j.status==='Awaiting Document Check'
+  ));
+  const active = jobs.filter(j=>j.status!=='Completed'&&!needsAttn.includes(j));
+
+  const cardHTML = (j) => {
+    const prog=progressOf(j.checklist);const pct=prog.total?Math.round(prog.done/prog.total*100):0;
+    return `<div class="job-card" onclick="showDetail('${j.id}')">
+      <div class="job-card-top" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px">
+        <div style="min-width:0"><span class="job-id">${j.id}</span> <span class="job-name">${j.name||j.location}</span>
+          <div class="job-meta" style="margin-top:3px"><span>🚛 ${j.truck||'TBC'}</span><span>📅 ${j.date}${j.time?' '+j.time:''}</span></div>
+        </div>
+        <div style="flex-shrink:0">${getJobBadge(j)}</div>
+      </div>
+      <div class="progress-wrap" style="margin-top:6px"><div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${pct===100?'#34d399':'#38bdf8'}"></div></div><span class="progress-label">${prog.done}/${prog.total}</span></div>
+    </div>`;
+  };
+
+  ov.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div>
+      <div style="font-weight:600;font-size:13px;color:#94a3b8;margin-bottom:10px">🔴 Needs Attention</div>
+      ${needsAttn.length ? needsAttn.map(cardHTML).join('') : '<div style="color:#334155;font-size:13px;padding:20px 0">Nothing needs attention</div>'}
+    </div>
+    <div>
+      <div style="font-weight:600;font-size:13px;color:#94a3b8;margin-bottom:10px">📋 Active Installations</div>
+      ${active.length ? active.map(cardHTML).join('') : '<div style="color:#334155;font-size:13px;padding:20px 0">No active jobs</div>'}
+    </div>
+  </div>`;
 }
 
 function renderJobList() {
   let list = jobs;
-  if (currentTab==='needs-attention') {
-    list = jobs.filter(j=>j.status!=='Completed' && (
-      j.truckUnavailable || j.problemReport?.status==='open' ||
-      j.rescheduleProposal?.status==='pending' ||
-      j.status==='Awaiting System Check' || j.status==='Awaiting Document Check'
-    ));
-  } else if (currentTab==='active') list = jobs.filter(j=>j.status!=='Completed' && !j.truckUnavailable && j.problemReport?.status!=='open' && j.rescheduleProposal?.status!=='pending');
+  if (currentTab==='active') list = jobs.filter(j=>j.status!=='Completed');
   else if (currentTab==='completed') list = jobs.filter(j=>j.status==='Completed');
   else if (currentTab==='all') {
     list = [...jobs];

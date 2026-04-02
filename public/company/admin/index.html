@@ -287,7 +287,7 @@ function badgeHTML(s) {
 }
 
 function getJobBadge(j) {
-  if (j.forceCompleted) return '<span class="badge" style="background:#1a1a0a;color:#fbbf24;border:1px solid #fbbf24">⚠ Completed by Admin</span>';
+  if (j.forceCompleted) return '<span class="badge" style="background:#2d1209;color:#fb923c;border:1px solid #fb923c">⚠ Closed by Admin</span>';
   if (j.clientConfirmed) return badgeHTML('Completed');
   if (j.needsAssignment && !j.technician) return '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">⚠ Needs Installer Assignment</span>';
   if (j.truckUnavailable) {
@@ -368,7 +368,7 @@ function renderOverview(){
   document.getElementById('today-list').innerHTML = overviewJobs.length ? overviewJobs.map(j=>`
     <div class="job-card" onclick="openDetail('${j.id}')">
       <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}</div>
-      <div class="job-meta"><span>👤 ${j.clientCompanyName||j.clientName||'—'}${j.clientName?' ('+j.clientName+')':''}</span><span>🔧 ${j.technician||'Unassigned'}</span><span>📅 ${j.date}${j.time?' '+j.time:''}</span><span>🚛 ${j.truck||'TBC'}</span>
+      <div class="job-meta"><span>👤 ${j.clientCompanyName||j.clientName||'—'}${j.clientName&&j.clientName!==j.clientCompanyName?' ('+j.clientName+')':''}</span><span>🔧 ${j.technician||'Unassigned'}</span><span>📅 ${j.date}${j.time?' '+j.time:''}</span><span>🚛 ${j.truck||'TBC'}</span>
       ${j.completionDate?`<span style="color:#64748b">✓ Done ${j.completionDate}</span>`:''}
       </div>
     </div>`).join('') : '<div style="color:#334155;font-size:13px;padding:20px 0">No jobs yet</div>';
