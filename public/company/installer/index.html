@@ -57,8 +57,8 @@
     <p style="font-size:13px;color:#64748b;margin-top:3px">Your assigned services</p>
   </div>
   <div class="tabs">
-    <button class="tab-btn active" onclick="setTab('active',this)">Active<span class="tab-count" id="tc-active">0</span></button>
-    <button class="tab-btn" onclick="setTab('completed',this)">Completed<span class="tab-count" id="tc-completed">0</span></button>
+    <button class="tab-btn active" data-tab="active" onclick="setTab('active',this)">Active<span class="tab-count" id="tc-active">0</span></button>
+    <button class="tab-btn" data-tab="completed" onclick="setTab('completed',this)">Completed<span class="tab-count" id="tc-completed">0</span></button>
     <button class="tab-btn" onclick="setTab('all',this)">All Jobs<span class="tab-count" id="tc-all">0</span></button>
   </div>
   <div id="all-filters" style="display:none;margin-bottom:12px;display:none">
@@ -280,6 +280,7 @@ function setTab(tab,el){
   _iTab=tab;
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   el.classList.add('active');
+  el.dataset.tab=tab;
   const filt = document.getElementById('all-filters');
   if (filt) filt.style.display = tab==='all' ? 'block' : 'none';
   renderDashboard();
@@ -291,7 +292,10 @@ function renderDashboard(){
   document.getElementById('tc-active').textContent=jobs.filter(j=>j.status!=='Completed').length;
   document.getElementById('tc-completed').textContent=jobs.filter(j=>j.status==='Completed').length;
   document.getElementById('tc-all').textContent=jobs.length;
-  if (_iTab==='active') {
+  // Read active tab from DOM (immune to variable conflicts)
+  const activeBtn = document.querySelector('.tab-btn.active');
+  const activeTab = activeBtn?.dataset?.tab || _iTab;
+  if (activeTab==='active') {
     renderSplitOverview();
   } else {
     const el=document.getElementById('job-list');

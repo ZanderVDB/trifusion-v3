@@ -688,6 +688,14 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
       sendEmail({ to:instEmail, subject:`New Job Assigned — ${id}`, html:jobLink(jobEmailHtml('New Job Assigned', 'A new service job has been assigned to you. Please log in to accept and review the details.', info)) });
     }
   }
+  // Email client that admin created a job on their behalf
+  if (clientId) {
+    const clientUser = Object.values(users).find(u=>u.clientId===clientId);
+    if (clientUser?.email) {
+      const cInfo = `<strong>Job:</strong> ${id}<br><strong>Location:</strong> ${location}<br><strong>Date:</strong> ${date} at ${time}<br><strong>Service:</strong> ${serviceType||'Installation'}${unitType?' — '+unitType:''}<br><strong>Assigned installer:</strong> ${assignedTechnician||'To be assigned'}`;
+      sendEmail({ to:clientUser.email, subject:`New Service Scheduled — ${id}`, html:jobLink(jobEmailHtml('A new service has been scheduled for you', `A ${serviceType||'installation'} job has been created for your account at ${location}. Log in to track progress.`, cInfo)) });
+    }
+  }
   res.json({ ok:true, id });
 });
 
@@ -781,6 +789,15 @@ app.post('/api/:companyId/jobs/:id/assign', requireCompanyAuth('admin'), (req, r
   job.needsAssignment = false;
   saveCompanyJobs(cid, jobs);
   broadcast(cid, { type:'refresh' });
+  // Email the newly assigned installer
+  const jobAssigned = getCompanyJobs(cid).find(j=>j.id===req.params.id);
+  if (jobAssigned && req.body.technician) {
+    const instEmail = getUserEmail(cid, req.body.technician);
+    if (instEmail) {
+      const aInfo = `<strong>Job:</strong> ${jobAssigned.id}<br><strong>Location:</strong> ${jobAssigned.location}<br><strong>Date:</strong> ${jobAssigned.date} at ${jobAssigned.time}<br><strong>Service:</strong> ${jobAssigned.serviceType||'Installation'}`;
+      sendEmail({ to:instEmail, subject:`You've Been Assigned — ${jobAssigned.id}`, html:jobLink(jobEmailHtml('Job Assigned to You', `You have been assigned to job ${jobAssigned.id}. Please log in to accept and review the details.`, aInfo)) });
+    }
+  }
   res.json({ ok:true });
 });
 
