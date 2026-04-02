@@ -691,6 +691,7 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), async (req, res) => {
   // Email assigned installer about new job
   if (assignedTechnician) {
     const instEmail = getUserEmail(cid, assignedTechnician);
+    console.log('[EMAIL-DEBUG] Job creation - technician:', assignedTechnician, 'email found:', instEmail);
     if (instEmail) {
       const cu = clientId ? Object.values(users).find(u=>u.clientId===clientId) : null;
       const info = `<strong>Job:</strong> ${id}<br><strong>Location:</strong> ${location}<br><strong>Date:</strong> ${date} at ${time}<br><strong>Service:</strong> ${serviceType||'Installation'}${unitType?' — '+unitType:''}<br><strong>Client:</strong> ${cu?.companyName||cu?.name||''}`;
@@ -1469,7 +1470,11 @@ async function sendEmail({ to, subject, html }) {
   const hq = getHQ();
   const apiKey = process.env.RESEND_API_KEY || hq.resendApiKey || '';
   const from   = process.env.FROM_EMAIL     || hq.fromEmail    || 'notification@web-anchor.com';
-  if (!apiKey || !to) return { ok:false, error: !apiKey ? 'No API key configured' : 'No recipient' };
+  console.log('[EMAIL] Attempting to send:', { to, subject, hasKey: !!apiKey, from });
+  if (!apiKey || !to) {
+    console.log('[EMAIL] Skipped:', !apiKey ? 'No API key' : 'No recipient');
+    return { ok:false, error: !apiKey ? 'No API key configured' : 'No recipient' };
+  }
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -1477,9 +1482,11 @@ async function sendEmail({ to, subject, html }) {
       body: JSON.stringify({ from, to, subject, html })
     });
     const data = await res.json();
-    if (data.id) return { ok:true, id:data.id };
+    if (data.id) { console.log('[EMAIL] Sent OK:', data.id); return { ok:true, id:data.id }; }
+    console.log('[EMAIL] Send failed:', data);
     return { ok:false, error: data.message || JSON.stringify(data) };
   } catch(e) {
+    console.log('[EMAIL] Error:', e.message);
     return { ok:false, error: e.message };
   }
 }
