@@ -143,6 +143,7 @@
       <div class="modal-title" style="margin:0" id="modal-job-title">Job Detail</div>
       <div style="display:flex;gap:8px">
         <button class="btn-danger btn-sm" onclick="deleteJob(currentJobId)">🗑 Delete</button>
+        <button id="force-complete-btn" style="background:#451a00;border:1px solid #fbbf24;border-radius:7px;padding:5px 12px;color:#fbbf24;font-size:12px;cursor:pointer;display:none" onclick="forceComplete(currentJobId)">⚠ Force Complete</button>
         <button class="btn-secondary btn-sm" onclick="closeDetail()">✕ Close</button>
       </div>
     </div>
@@ -272,7 +273,7 @@ function setMainTab(tab,el){
 
 const STATUS_META = {
   'Pending Acceptance':      {color:'#fca5a5', bg:'#2a0f0f', dot:'#fca5a5'},
-  'In Progress':             {color:'#4ade80', bg:'#0a2a1e', dot:'#4ade80'},
+  'In Progress':             {color:'#fbbf24', bg:'#2d1a00', dot:'#fbbf24'},
   'Awaiting System Check':   {color:'#38bdf8', bg:'#0c2a3a', dot:'#38bdf8'},
   'Waiting for Docs':        {color:'#fb923c', bg:'#2d1a0a', dot:'#fb923c'},
   'Awaiting Document Check': {color:'#a78bfa', bg:'#1e1130', dot:'#a78bfa'},
@@ -354,6 +355,7 @@ function renderOverview(){
     else if(j.status==='Pending Acceptance') reason='🔴 Awaiting installer acceptance';
     else if(j.rescheduleProposal?.status==='pending') reason='⚠ Reschedule pending client response';
     else if(j.status==='Waiting for Docs') reason='📄 Waiting for installer documents';
+    else if(j.needsAssignment&&!j.technician) reason='⚠ Needs installer assigned';
     else if(!j.time) reason='🕐 No installation time set';
     return `<div class="job-card" onclick="openDetail('${j.id}')" style="${jobUrgencyStyle(j)}">
       <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}</div>
@@ -366,7 +368,7 @@ function renderOverview(){
   document.getElementById('today-list').innerHTML = overviewJobs.length ? overviewJobs.map(j=>`
     <div class="job-card" onclick="openDetail('${j.id}')">
       <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}</div>
-      <div class="job-meta"><span>👤 ${j.clientName||'David'}</span><span>🔧 ${j.technician}</span><span>📅 ${j.date}${j.time?' '+j.time:''}</span><span>🚛 ${j.truck||'TBC'}</span>
+      <div class="job-meta"><span>👤 ${j.clientCompanyName||j.clientName||'—'}${j.clientName?' ('+j.clientName+')':''}</span><span>🔧 ${j.technician||'Unassigned'}</span><span>📅 ${j.date}${j.time?' '+j.time:''}</span><span>🚛 ${j.truck||'TBC'}</span>
       ${j.completionDate?`<span style="color:#64748b">✓ Done ${j.completionDate}</span>`:''}
       </div>
     </div>`).join('') : '<div style="color:#334155;font-size:13px;padding:20px 0">No jobs yet</div>';
@@ -405,7 +407,7 @@ function renderJobsTab(){
             <span>🔧 ${j.serviceType||'Installation'}</span>
             <span>📍 ${j.location}</span>
             <span>📅 ${j.date}${j.time?' '+j.time:''}</span>
-            <span>👤 ${j.clientCompanyName||j.clientName||'—'}</span>
+            <span>👤 ${j.clientCompanyName||'—'}${j.clientName?' ('+j.clientName+')':''}</span>
             <span>🔩 ${j.technician||'Unassigned'}</span>
           </div>
         </div>
@@ -459,6 +461,10 @@ function openDetail(id){
   currentJobId=id;
   document.getElementById('detail-modal').classList.add('open');
   renderModalContent(id);
+  // Show force complete only for non-completed jobs
+  const j = jobs.find(x=>x.id===id);
+  const fcBtn = document.getElementById('force-complete-btn');
+  if (fcBtn) fcBtn.style.display = (j && !j.clientConfirmed) ? 'block' : 'none';
 }
 function closeDetail(){
   window._editUnlocked = {};
@@ -529,6 +535,15 @@ function renderModalContent(id){
   document.getElementById('modal-job-title').textContent=j.id+' — '+(j.name||j.location);
   // Pre-select time dropdowns after render
   setTimeout(()=>{
+    // Populate assign installer dropdown if present
+    const assignSel = document.getElementById('assign-sel-'+id);
+    if (assignSel) {
+      apiFetch(capi('/users')).then(r=>r.json()).then(users=>{
+        const installers = Object.values(users).filter(u=>u.role==='installer');
+        assignSel.innerHTML = '<option value="">Select installer…</option>' +
+          installers.map(u=>`<option value="${u.installer||u.name}">${u.name}${u.companyName?' ('+u.companyName+')':''}</option>`).join('');
+      });
+    }
     const th=document.getElementById('admin-time-h-'+id);
     const tm=document.getElementById('admin-time-m-'+id);
     if(th&&tm&&j.time){const parts=j.time.split(':');th.value=parts[0]||'';tm.value=parts[1]||'00';}
@@ -682,10 +697,10 @@ function renderModalContent(id){
           </div>
           <button onclick="adminDeleteNote('${j.id}',${ni})" style="background:#2a0f0f;border:none;border-radius:4px;color:#f87171;font-size:11px;padding:3px 7px;cursor:pointer;flex-shrink:0">✕</button>
         </div>`).join(''):''}
-      ${j.clientConfirmed && !false ? `<div style="font-size:12px;color:#334155;font-style:italic">Press Edit to add notes</div>` : `<textarea id="admin-note-area-${j.id}" rows="2" placeholder="Type a note and press Enter to save…"
+      ${(window._editUnlocked && window._editUnlocked[j.id]) || !j.clientConfirmed ? `<textarea id="admin-note-area-${j.id}" rows="2" placeholder="Type a note and press Enter to save…"
         style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:9px 11px;color:#e2e8f0;font-size:13px;font-family:inherit;resize:vertical"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();adminSaveNote('${j.id}')}"></textarea>
-      <div style="font-size:11px;color:#334155;margin-top:4px">Press Enter to save · Shift+Enter for new line</div>`}
+      <div style="font-size:11px;color:#334155;margin-top:4px">Press Enter to save · Shift+Enter for new line</div>` : `<div style="font-size:12px;color:#334155;font-style:italic">Press Edit to add notes</div>`}
     </div>`;
 
   const scheduleThread = '';
@@ -708,14 +723,13 @@ function renderModalContent(id){
       <div style="font-size:13px;color:#94a3b8;margin-bottom:10px">This job needs an installer. Select one from your team:</div>
       <div style="display:flex;gap:8px">
         <select id="assign-sel-${j.id}" class="form-input" style="flex:1;font-size:13px">
-          <option value="">Select installer…</option>
-          ${Object.values(users).filter(u=>u.role==='installer').map(u=>`<option value="${u.installer||u.name}">${u.name}${u.companyName?' ('+u.companyName+')':''} — ${(u.countries||[]).join(', ')||'No countries'}</option>`).join('')}
+          <option value="">Loading…</option>
         </select>
         <button onclick="adminAssignInstaller('${j.id}')" class="btn-primary" style="font-size:13px;padding:8px 16px">Assign</button>
       </div>
     </div>` : ''}${adminConfirmedBanner}
     <div style="margin-bottom:12px;padding:8px 12px;background:#0c1a2a;border-radius:8px;font-size:12px;color:#64748b">
-      👤 Assigned to <b style="color:#f1f5f9">${j.clientName||'David'}</b> &nbsp;·&nbsp; 🔧 ${j.technician||'TBC'} &nbsp;·&nbsp; 🌍 ${j.country||''}
+      👤 Assigned to <b style="color:#f1f5f9">${j.clientName||j.clientCompanyName||'—'}</b> &nbsp;·&nbsp; 🔧 ${j.technician||'TBC'} &nbsp;·&nbsp; 🌍 ${j.country||''}
     </div>
     <div style="margin-bottom:14px">${getJobBadge(j)}</div>
     ${renderActivityLog(j)}

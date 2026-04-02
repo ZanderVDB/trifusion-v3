@@ -506,27 +506,24 @@ app.put('/api/:companyId/users/:username', requireCompanyAuth('admin'), (req, re
     delete users[oldUsername];
   }
   saveCompanyUsers(cid, users);
-  // Update matching jobs if client or installer name/company changed
-  const jobs = getCompanyJobs(cid);
+  // Sync name/company changes to existing jobs
+  const allJobs = getCompanyJobs(cid);
+  const updatedUser = users[newUsername || oldUsername];
   let jobsChanged = false;
-  jobs.forEach(job => {
-    if (users[newUsername || oldUsername]?.role === 'client') {
-      const clientId = users[newUsername || oldUsername]?.clientId;
-      if (job.clientId === clientId) {
-        if (req.body.name) job.clientName = req.body.name;
-        if (req.body.companyName) job.clientCompanyName = req.body.companyName;
-        jobsChanged = true;
-      }
+  allJobs.forEach(job => {
+    if (updatedUser?.role === 'client' && job.clientId === updatedUser.clientId) {
+      if (req.body.name) { job.clientName = req.body.name; jobsChanged = true; }
+      if (req.body.companyName) { job.clientCompanyName = req.body.companyName; jobsChanged = true; }
     }
-    if (users[newUsername || oldUsername]?.role === 'installer') {
-      const instName = users[newUsername || oldUsername]?.installer || users[newUsername || oldUsername]?.name;
-      if (job.technician === instName || (req.body.name && job.technician === oldUsername)) {
-        if (req.body.name) job.technician = req.body.installer || req.body.name;
+    if (updatedUser?.role === 'installer') {
+      const oldInstName = users[oldUsername]?.installer || users[oldUsername]?.name;
+      if (job.technician === oldInstName) {
+        if (req.body.name) { job.technician = req.body.name; jobsChanged = true; }
         jobsChanged = true;
       }
     }
   });
-  if (jobsChanged) saveCompanyJobs(cid, jobs);
+  if (jobsChanged) saveCompanyJobs(cid, allJobs);
   res.json({ ok:true });
 });
 
