@@ -712,6 +712,14 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), async (req, res) => {
       sendEmail({ to:clientUser.email, subject:cSubject, html:jobLink(jobEmailHtml(cHeading, cBody, cInfo)) });
     }
   }
+  // Email admin when a client creates a job
+  if (req.user.role === 'client') {
+    const adminEmail = getAdminEmail(cid);
+    if (adminEmail) {
+      const aInfo = `<strong>Job:</strong> ${id}<br><strong>Client:</strong> ${clientName||clientId}<br><strong>Location:</strong> ${location}<br><strong>Date:</strong> ${date} at ${time}<br><strong>Service:</strong> ${serviceType||'Installation'}`;
+      sendEmail({ to:adminEmail, subject:`New Client Request — ${id}`, html:jobLink(jobEmailHtml('New job created by client', `${clientName||clientId} has submitted a new service request for ${location}. Log in to review and assign an installer.`, aInfo)) });
+    }
+  }
   res.json({ ok:true, id });
 });
 
@@ -919,6 +927,15 @@ app.post('/api/:companyId/jobs/:id/confirm-ok', requireCompanyAuth('client'), as
     if (doneCu?.email) sendEmail({ to:doneCu.email, subject:`Job Completed — ${doneJob.id}`, html:jobLink(jobEmailHtml('Job Successfully Completed ✓', `Job ${doneJob.id} at ${doneJob.location} is now fully complete. All documents have been confirmed. Thank you!`, doneInfo)) });
     if (doneInst) sendEmail({ to:doneInst, subject:`Job Completed — ${doneJob.id}`, html:jobLink(jobEmailHtml('Job Successfully Completed ✓', `Job ${doneJob.id} at ${doneJob.location} has been confirmed by the client. Great work!`, doneInfo)) });
   }
+  // Email admin that job is done
+  const doneJob2 = getCompanyJobs(cid).find(j=>j.id===req.params.id);
+  if (doneJob2) {
+    const adminEmail = getAdminEmail(cid);
+    if (adminEmail) {
+      const dInfo2 = `<strong>Job:</strong> ${doneJob2.id}<br><strong>Location:</strong> ${doneJob2.location}<br><strong>Client:</strong> ${doneJob2.clientName||doneJob2.clientId}<br><strong>Installer:</strong> ${doneJob2.technician}`;
+      sendEmail({ to:adminEmail, subject:`Job Completed — ${doneJob2.id}`, html:jobLink(jobEmailHtml('Job fully completed', `Job ${doneJob2.id} has been fully confirmed by the client and is now complete.`, dInfo2)) });
+    }
+  }
   res.json({ ok:true });
 });
 
@@ -952,6 +969,16 @@ app.post('/api/:companyId/jobs/:id/report-problem', requireCompanyAuth('client')
       const ptype = req.body.checkpoint === 'documents' ? 'Document' : 'System';
       const info  = `<strong>Job:</strong> ${probJob.id}<br><strong>Client:</strong> ${req.user.name}<br><strong>Problem:</strong> ${req.body.message||''}`;
       sendEmail({ to:instEmail, subject:`Client Reported a ${ptype} Problem — ${probJob.id}`, html:jobLink(jobEmailHtml('Client reported a problem', `${req.user.name} has reported a ${ptype.toLowerCase()} issue with job ${probJob.id}. Please log in to address it.`, info)) });
+    }
+  }
+  // Also email admin about problem
+  const probJob2 = getCompanyJobs(cid).find(j=>j.id===req.params.id);
+  if (probJob2) {
+    const adminEmail = getAdminEmail(cid);
+    if (adminEmail) {
+      const ptype2 = req.body.checkpoint === 'documents' ? 'Document' : 'System';
+      const aInfo2 = `<strong>Job:</strong> ${probJob2.id}<br><strong>Client:</strong> ${req.user.name}<br><strong>Problem type:</strong> ${ptype2}<br><strong>Message:</strong> ${req.body.message||''}`;
+      sendEmail({ to:adminEmail, subject:`Problem Reported on ${probJob2.id}`, html:jobLink(jobEmailHtml('A client has reported a problem', `${req.user.name} reported a ${ptype2.toLowerCase()} issue on job ${probJob2.id}. The installer has been notified.`, aInfo2)) });
     }
   }
   res.json({ ok:true });
@@ -1526,6 +1553,13 @@ function getUserEmail(cid, identifier) {
     u.installer === identifier || u.name === identifier
   );
   return u?.email || '';
+}
+
+
+function getAdminEmail(cid) {
+  const users = getCompanyUsers(cid);
+  const admin = Object.values(users).find(u => u.role === 'admin');
+  return admin?.email || '';
 }
 
 function jobLink(html) {

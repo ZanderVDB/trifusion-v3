@@ -268,7 +268,1222 @@ function setMainTab(tab,el){
   if(tab==='messages') loadMessages();
   if(tab==='jobs') renderJobsTab();
   if(tab==='users') loadUsers();
-  if(tab==='settings') { loadSettings(); populateCurrentCredentials(); }
+  if(tab==='settings') loadSettings();
+}
+
+const STATUS_META = {
+  'Pending Acceptance':      {color:'#fca5a5', bg:'#2a0f0f', dot:'#fca5a5'},
+  'In Progress':             {color:'#fbbf24', bg:'#2d1a00', dot:'#fbbf24'},
+  'Awaiting System Check':   {color:'#38bdf8', bg:'#0c2a3a', dot:'#38bdf8'},
+  'Waiting for Docs':        {color:'#fb923c', bg:'#2d1a0a', dot:'#fb923c'},
+  'Awaiting Document Check': {color:'#a78bfa', bg:'#1e1130', dot:'#a78bfa'},
+  'Completed':               {color:'#34d399', bg:'#0a2a1e', dot:'#34d399'},
+  'Vehicle Unavailable':       {color:'#f87171', bg:'#2a0f0f', dot:'#f87171'},
+  'Not Started':             {color:'#64748b', bg:'#1e293b', dot:'#64748b'},
+};
+function badgeHTML(s) {
+  const m = STATUS_META[s] || STATUS_META['Not Started'];
+  return `<span class="badge" style="background:${m.bg};color:${m.color};border:1px solid ${m.color}30"><span class="badge-dot" style="background:${m.dot}"></span>${s}</span>`;
+}
+
+function getJobBadge(j) {
+  if (j.forceCompleted) return '<span class="badge" style="background:#2d1209;color:#fb923c;border:1px solid #fb923c">⚠ Closed by Admin</span>';
+  if (j.clientConfirmed) return badgeHTML('Completed');
+  if (j.needsAssignment && !j.technician) return '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">⚠ Needs Installer Assignment</span>';
+  if (j.truckUnavailable) {
+    const label = j.clientTruckReply ? '🚫 Vehicle Unavailable — Awaiting Installer' : '🚫 Vehicle Unavailable — Awaiting Client';
+    return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">' + label + '</span>';
+  }
+  if (j.problemReport?.status === 'open') {
+    const type = j.problemReport.checkpoint === 'documents' ? 'Document' : 'System';
+    return '<span class="badge pulse" style="background:#2a0f0f;color:#f87171;border:1px solid #f87171">⚠ ' + type + ' Problem — Awaiting Installer</span>';
+  }
+  if (j.rescheduleProposal?.status === 'pending') {
+    const lr = j.rescheduleThread?.[j.rescheduleThread.length - 1]?.role;
+    const clientTurn = !lr || lr === 'installer';
+    return clientTurn
+      ? '<span class="badge pulse" style="background:#1e1130;color:#c084fc;border:1px solid #c084fc">↺ Reschedule — Awaiting Client</span>'
+      : '<span class="badge pulse" style="background:#451a00;color:#fbbf24;border:1px solid #fbbf24">↺ Reschedule — Awaiting Installer</span>';
+  }
+  return badgeHTML(j.status);
+}
+function progressOf(cl){if(!cl)return{done:0,total:0};const all=cl.flatMap(s=>s.steps.filter(x=>!x.skipped));return{done:all.filter(x=>x.done).length,total:all.length};}
+
+
+function jobUrgencyStyle(job){
+  if(job.status==='Completed') return '';
+  if(!job.date || !job.time) return '';
+  const svc = job.checklist?.find(s=>s.steps?.some(st=>st.id==='service_complete'));
+  if(svc?.steps?.find(st=>st.id==='service_complete')?.done) return '';
+  const scheduled = new Date(job.date + 'T' + job.time);
+  const now = new Date();
+  const diffMins = (scheduled - now) / 60000;
+  if(diffMins <= 0)                          return 'border-color:rgba(248,113,113,.8);box-shadow:0 0 0 1px rgba(248,113,113,.3);';  // at or past time
+  if(diffMins > 0   && diffMins <= 60)       return 'border-color:rgba(251,146,60,.7);box-shadow:0 0 0 1px rgba(251,146,60,.3);'; // within 1hr
+  if(diffMins > 60  && diffMins <= 120)      return 'border-color:rgba(251,191,36,.8);box-shadow:0 0 0 1px rgba(251,191,36,.3);'; // 1-2hr before
+  return '';
+}
+
+function renderOverview(){
+  const today=new Date().toISOString().slice(0,10);
+  const active=jobs.filter(j=>j.status!=='Completed');
+  const counts={
+    total: jobs.length,
+    active: active.length,
+    pending: jobs.filter(j=>j.status==='Pending Acceptance').length,
+    waiting: jobs.filter(j=>j.status==='Waiting for Docs').length,
+    reschedule: jobs.filter(j=>j.rescheduleProposal?.status==='pending').length,
+    completed: jobs.filter(j=>j.status==='Completed').length,
+    today: jobs.filter(j=>j.date===today).length
+  };
+  document.getElementById('stat-grid').innerHTML=[
+    {label:'Total Jobs',    value:counts.total,     color:'#94a3b8'},
+    {label:'Active',        value:counts.active,    color:'#4ade80'},
+    {label:'Pending Accept',value:counts.pending,   color:'#fca5a5'},
+    {label:'Waiting Docs',  value:counts.waiting,   color:'#fb923c'},
+    {label:'Reschedules',   value:counts.reschedule,color:'#f87171'},
+    {label:'Completed',     value:counts.completed, color:'#64748b'},
+  ].map(s=>`<div class="stat-card"><div class="stat-value" style="color:${s.color}">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+
+  // Attention list
+  const attention=jobs.filter(j=>j.status!=='Completed'&&(j.truckUnavailable||j.problemReport||j.rescheduleProposal?.status==='pending'||j.needsAssignment));
+  document.getElementById('attention-list').innerHTML=attention.length?attention.map(j=>{
+    let reason='';
+    if(j.truckUnavailable) reason='✕ Truck unavailable: '+(j.truckUnavailableReason||'').slice(0,60);
+    else if(j.problemReport?.status==='open') reason='🚨 Problem: '+(j.problemReport.message||'').slice(0,60);
+    else if(j.status==='Pending Acceptance') reason='🔴 Awaiting installer acceptance';
+    else if(j.rescheduleProposal?.status==='pending') reason='⚠ Reschedule pending client response';
+    else if(j.status==='Waiting for Docs') reason='📄 Waiting for installer documents';
+    else if(j.needsAssignment&&!j.technician) reason='⚠ Needs installer assigned';
+    else if(!j.time) reason='🕐 No installation time set';
+    return `<div class="job-card" onclick="openDetail('${j.id}')" style="${jobUrgencyStyle(j)}">
+      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}</div>
+      <div style="font-size:12px;color:#fb923c">${reason}</div>
+    </div>`;
+  }).join(''):'<div style="color:#334155;font-size:13px;padding:20px 0">Nothing needs attention right now</div>';
+
+  // Active jobs only on overview
+  const overviewJobs = jobs.filter(j=>j.status!=='Completed'&&!j.truckUnavailable&&!j.problemReport&&j.rescheduleProposal?.status!=='pending'&&!j.needsAssignment);
+  document.getElementById('today-list').innerHTML = overviewJobs.length ? overviewJobs.map(j=>`
+    <div class="job-card" onclick="openDetail('${j.id}')">
+      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}</div>
+      <div class="job-meta"><span>👤 ${j.clientCompanyName||j.clientName||'—'}${j.clientName&&j.clientName!==j.clientCompanyName?' ('+j.clientName+')':''}</span><span>🔧 ${j.technician||'Unassigned'}</span><span>📅 ${j.date}${j.time?' '+j.time:''}</span><span>🚛 ${j.truck||'TBC'}</span>
+      ${j.completionDate?`<span style="color:#64748b">✓ Done ${j.completionDate}</span>`:''}
+      </div>
+    </div>`).join('') : '<div style="color:#334155;font-size:13px;padding:20px 0">No jobs yet</div>';
+}
+
+function needsAttention(j) {
+  return !!(j.rescheduleProposal?.status==='pending'||j.problemReport||j.truckUnavailable||j.needsAssignment);
+}
+function renderJobsTab(){
+  const q=document.getElementById('search').value.toLowerCase();
+  const fs=document.getElementById('filter-status').value;
+  const fc=document.getElementById('filter-client')?.value||'';
+  const fi=document.getElementById('filter-installer').value;
+  let list = [...jobs]; // All jobs including completed
+  if(q) list=list.filter(j=>(j.id+j.location+(j.name||'')+(j.truck||'')+j.technician).toLowerCase().includes(q));
+  if(fs) {
+    list = jobs.filter(j=>j.status!=='Completed');
+    list = list.filter(j=>j.status===fs);
+  }
+  if(fc) list=list.filter(j=>(j.clientId)===fc);
+  if(fi) list=list.filter(j=>j.technician===fi);
+  const el=document.getElementById('jobs-list');
+  if(!list.length){el.innerHTML='<div style="text-align:center;color:#334155;padding:50px 0;font-size:14px">No jobs match</div>';return;}
+  el.innerHTML=list.map(j=>{
+    const prog=progressOf(j.checklist);
+    const pct=prog.total?Math.round(prog.done/prog.total*100):0;
+    return `<div class="job-card" onclick="openDetail('${j.id}')" style="${jobUrgencyStyle(j)}">
+      <div class="job-card-top">
+        <div class="job-card-left">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="job-id">${j.id}</span>
+            <span class="job-name">${j.name||j.location}</span>
+          </div>
+          <div class="job-meta" style="margin-top:4px">
+            <span>🚛 ${j.truck||'TBC'}</span>
+            <span>🔧 ${j.serviceType||'Installation'}</span>
+            <span>📍 ${j.location}</span>
+            <span>📅 ${j.date}${j.time?' '+j.time:''}</span>
+            <span>👤 ${j.clientCompanyName||'—'}${j.clientName?' ('+j.clientName+')':''}</span>
+            <span>🔩 ${j.technician||'Unassigned'}</span>
+          </div>
+        </div>
+        <div class="job-card-badge">${getJobBadge(j)}</div>
+      </div>
+      <div class="progress-wrap" style="margin-top:8px">
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${pct===100?'#34d399':'#38bdf8'}"></div></div>
+        <span class="progress-label">${prog.done}/${prog.total}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadMessages(){
+  try {
+    const res  = await apiFetch(capi('/messages'));
+    const msgs = await res.json();
+    const el   = document.getElementById('msg-list');
+    if (!Array.isArray(msgs) || msgs.length === 0) {
+      el.innerHTML = '<div style="padding:24px;color:#334155;font-size:13px">No messages yet</div>';
+      return;
+    }
+    // Add clear all button at top
+    el.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button onclick="clearAllMessages()" style="background:#2a0f0f;border:1px solid #f8717140;border-radius:7px;padding:5px 12px;color:#f87171;font-size:12px;cursor:pointer">Clear All</button>
+    </div>` + msgs.map(m => `
+      <div class="msg-item ${m.read?'':'unread'}"
+        style="padding:12px 16px;border-bottom:1px solid #1e293b;cursor:${m.job_id?'pointer':'default'};transition:background .1s"
+        onmouseover="this.style.background='#0d1829'" onmouseout="this.style.background=''"
+        onclick="${m.job_id?`openDetail('${m.job_id}');setMainTab('jobs',document.querySelector('[data-tab=jobs]'))`:''}">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+          <span style="background:#1e293b;color:#64748b;border-radius:5px;padding:1px 7px;font-size:10px;text-transform:uppercase;letter-spacing:.06em">${(m.type||'').replace(/_/g,' ')}</span>
+          ${m.job_id?`<span style="font-size:11px;color:#38bdf8;font-weight:600">→ ${m.job_id}</span>`:''}
+          <span style="font-size:11px;color:#334155;margin-left:auto">${m.created_at||''}</span>
+          ${!m.read?'<span style="width:7px;height:7px;border-radius:50%;background:#38bdf8;flex-shrink:0"></span>':''}
+        </div>
+        <div style="font-size:13px;color:#cbd5e1">${m.body||''}</div>
+      </div>`).join('');
+    // Mark as read after viewing
+    apiFetch(capi('/messages/read'), { method:'POST' }).catch(()=>{});
+    document.getElementById('unread-count').textContent = '0';
+    document.getElementById('msg-badge').style.display = 'none';
+    document.getElementById('tc-msgs').textContent = '0';
+  } catch(e) {
+    document.getElementById('msg-list').innerHTML = '<div style="padding:24px;color:#f87171;font-size:13px">Error loading messages: '+e.message+'</div>';
+  }
+}
+
+// ── Job detail modal ──────────────────────────────────────────────────────────
+function openDetail(id){
+  currentJobId=id;
+  document.getElementById('detail-modal').classList.add('open');
+  renderModalContent(id);
+  // Show force complete only for non-completed jobs
+  const j = jobs.find(x=>x.id===id);
+  const fcBtn = document.getElementById('force-complete-btn');
+  if (fcBtn) fcBtn.style.display = (j && !j.clientConfirmed) ? 'block' : 'none';
+}
+function closeDetail(){
+  window._editUnlocked = {};
+  document.getElementById('detail-modal').classList.remove('open');
+  currentJobId=null;
+  loadAll(); // refresh badges on close
+}
+
+
+function adminUploadBtn(jobId, secId, stepId, multiple) {
+  return `<label style="display:inline-flex;align-items:center;gap:5px;background:#1e293b;border:1px dashed #334155;border-radius:6px;padding:4px 10px;color:#64748b;font-size:11px;cursor:pointer;margin-top:4px">
+    <span>+ Upload</span>
+    <input type="file" ${multiple?'multiple':''} accept=".pdf,.jpg,.jpeg,.png" style="display:none" 
+      onchange="adminUploadFile('${jobId}','${secId}','${stepId}',this)"/>
+  </label>`;
+}
+async function adminUploadFile(jobId, secId, stepId, input) {
+  for (const file of input.files) {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('secId', secId);
+    fd.append('stepId', stepId);
+    await apiUpload(capi('/jobs/'+jobId+'/upload'), fd);
+  }
+  const jobRes = await apiFetch(capi('/jobs/'+jobId));
+  const updated = await jobRes.json();
+  const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+  renderModalContent(jobId);
+}
+async function adminSaveStepNote(jobId, secId, stepId) {
+  const ta = document.getElementById('admin-note-area-'+jobId+'-'+secId+'-'+stepId);
+  if (!ta) return;
+  await apiFetch(capi('/jobs/'+jobId+'/step'), {method:'POST', body:JSON.stringify({secId, stepId, done:true, noteText:ta.value})});
+  const jobRes = await apiFetch(capi('/jobs/'+jobId));
+  const updated = await jobRes.json();
+  const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+  renderModalContent(jobId);
+}
+
+
+async function forceComplete(jobId) {
+  const reason = prompt('Reason for force-completing this job (optional):');
+  if (reason === null) return; // cancelled
+  if (!confirm('Force-complete ' + jobId + '? This will mark all steps done and move the job to Completed.')) return;
+  const res = await apiFetch(capi('/jobs/'+jobId+'/force-complete'), {method:'POST', body:JSON.stringify({reason})});
+  const data = await res.json();
+  if (data.ok) { loadAll(); closeDetail(); }
+  else alert(data.error || 'Error');
+}
+
+async function adminAssignInstaller(jobId) {
+  const sel = document.getElementById('assign-sel-'+jobId);
+  const technician = sel?.value;
+  if (!technician) { alert('Please select an installer'); return; }
+  const res = await apiFetch(capi('/jobs/'+jobId+'/assign'), {method:'POST', body:JSON.stringify({technician})});
+  const data = await res.json();
+  if (data.ok) {
+    const jobRes = await apiFetch(capi('/jobs/'+jobId));
+    const updated = await jobRes.json();
+    const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+    renderModalContent(jobId); loadAll();
+  } else alert(data.error||'Error');
+}
+
+function renderModalContent(id){
+  const j=jobs.find(x=>x.id===id);
+  if(!j) return;
+  document.getElementById('modal-job-title').textContent=j.id+' — '+(j.name||j.location);
+  // Pre-select time dropdowns after render
+  setTimeout(()=>{
+    // Populate assign installer dropdown if present
+    const assignSel = document.getElementById('assign-sel-'+id);
+    if (assignSel) {
+      apiFetch(capi('/users')).then(r=>r.json()).then(users=>{
+        const installers = Object.values(users).filter(u=>u.role==='installer');
+        assignSel.innerHTML = '<option value="">Select installer…</option>' +
+          installers.map(u=>`<option value="${u.installer||u.name}">${u.name}${u.companyName?' ('+u.companyName+')':''}</option>`).join('');
+      });
+    }
+    const th=document.getElementById('admin-time-h-'+id);
+    const tm=document.getElementById('admin-time-m-'+id);
+    if(th&&tm&&j.time){const parts=j.time.split(':');th.value=parts[0]||'';tm.value=parts[1]||'00';}
+  },50);
+
+  const checklistHTML=j.checklist.map((sec,si)=>{
+    const allDone=sec.steps.every(s=>s.done||s.skipped);
+    const anyDone=sec.steps.some(s=>s.done);
+    const isLocked = j.clientConfirmed && !(window._editUnlocked && window._editUnlocked[j.id]);
+    const stepsHTML=sec.steps.map(step=>{
+      if(step.skipped) return `<div class="step-row skipped"><div class="step-check-admin"></div><span class="step-label" style="color:#475569">SKIPPED: ${step.label}</span></div>`;
+      // Multi-image step
+      if(step.multipleFiles) return `<div class="step-row" style="flex-wrap:wrap;gap:6px">
+        <button class="step-check-admin ${step.done?'done':''}" ${isLocked?'style="cursor:not-allowed;opacity:.5"':''} ${isLocked?'':'onclick="adminToggleStep(\''+j.id+'\',\''+sec.id+'\',\''+step.id+'\','+(!step.done)+')"'}>
+          ${step.done?'<span style="color:#0a1220;font-size:10px;font-weight:700">✓</span>':''}
+        </button>
+        <span class="step-label ${step.done?'done':''}" style="flex:1">${step.label}</span>
+        ${(step.uploadedFiles&&step.uploadedFiles.length)?`<div style="width:100%;padding:6px 0 2px 0">
+            ${step.uploadedFiles.map(f=>`
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#0d1829;border-radius:7px;margin-bottom:4px">
+                <span style="font-size:12px;color:#94a3b8;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${f.original||f.filename}</span>
+                <a href="${f.fileUrl}" target="_blank" style="font-size:11px;font-weight:600;color:#38bdf8;background:#0c2a3a;padding:3px 10px;border-radius:6px;border:1px solid rgba(56,189,248,.3);white-space:nowrap;flex-shrink:0;text-decoration:none">View</a>
+                ${isLocked?'':'<button onclick="adminDeleteFile(\''+j.id+'\',\''+sec.id+'\',\''+step.id+'\',\''+f.filename+'\')" style="background:#2a0f0f;border:none;border-radius:5px;color:#f87171;font-size:11px;padding:3px 8px;cursor:pointer;flex-shrink:0">✕</button>'}
+              </div>`).join('')}
+          </div>`:''}
+        ${isLocked?'':adminUploadBtn(j.id, sec.id, step.id, true)}
+      </div>`;
+      // Text note step
+      if(step.isTextNote) return `<div class="step-row" style="flex-wrap:wrap;gap:6px">
+        <button class="step-check-admin ${step.done?'done':step.skipped?'skipped':''}" style="cursor:default;opacity:.7">
+          ${step.done?'<span style="color:#0a1220;font-size:10px;font-weight:700">✓</span>':step.skipped?'<span style="color:#475569;font-size:10px">—</span>':''}
+        </button>
+        <span class="step-label" style="flex:1">${step.label} <span style="color:#475569;font-size:11px">(optional)</span></span>
+        <div style="width:100%;margin-top:6px">
+          ${isLocked
+            ? (step.skipped
+                ? '<div style="padding:8px 10px;background:#1e293b;border-radius:7px;font-size:12px;color:#475569;font-style:italic">Skipped by installer</div>'
+                : step.noteText
+                  ? '<div style="padding:10px 12px;background:#0a1220;border:1px solid #1e293b;border-radius:8px;font-size:13px;color:#e2e8f0;line-height:1.5">' + step.noteText + '</div>'
+                  : '<div style="padding:8px 10px;background:#1e293b;border-radius:7px;font-size:12px;color:#334155;font-style:italic">No notes added</div>')
+            : '<textarea id="admin-note-area-'+j.id+'-'+sec.id+'-'+step.id+'" rows="2" placeholder="Type additional notes…" style="width:100%;background:#1e293b;border:1px solid #334155;border-radius:7px;padding:8px 10px;color:#e2e8f0;font-size:12px;font-family:inherit;resize:vertical;margin-top:4px">' + (step.noteText||'') + '</textarea><button onclick="adminSaveStepNote(\''+j.id+'\',\''+sec.id+'\',\''+step.id+'\')" style="margin-top:6px;background:#0c2a3a;border:1px solid #38bdf8;border-radius:6px;padding:6px 14px;color:#38bdf8;font-size:12px;cursor:pointer">Save Note</button>'}
+        </div>
+      </div>`;
+      return `<div class="step-row" style="flex-wrap:wrap;gap:6px">
+        <button class="step-check-admin ${step.done?'done':''}" ${isLocked?'style="cursor:not-allowed;opacity:.5"':''} ${isLocked?'':'onclick="adminToggleStep(\''+j.id+'\',\''+sec.id+'\',\''+step.id+'\','+(!step.done)+')"'}>
+          ${step.done?'<span style="color:#0a1220;font-size:10px;font-weight:700">✓</span>':''}
+        </button>
+        <span class="step-label ${step.done?'done':step.alert?'alert':''}" style="flex:1">${step.label}</span>
+        ${(step.uploadedFiles&&step.uploadedFiles.length)?`<div style="width:100%;padding:6px 0 2px 0">
+            ${step.uploadedFiles.map(f=>`
+              <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#0d1829;border-radius:7px;margin-bottom:4px">
+                <span style="font-size:12px;color:#94a3b8;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📎 ${f.original||f.filename}</span>
+                <a href="${f.fileUrl}" target="_blank" style="font-size:11px;font-weight:600;color:#38bdf8;background:#0c2a3a;padding:3px 10px;border-radius:6px;border:1px solid rgba(56,189,248,.3);white-space:nowrap;flex-shrink:0;text-decoration:none">View</a>
+                ${isLocked?'':'<button onclick="adminDeleteFile(\''+j.id+'\',\''+sec.id+'\',\''+step.id+'\',\''+f.filename+'\')" style="background:#2a0f0f;border:none;border-radius:5px;color:#f87171;font-size:11px;padding:3px 8px;cursor:pointer;flex-shrink:0">✕</button>'}
+              </div>`).join('')}
+          </div>`:''}
+        ${(step.requiresUpload && !step.multipleFiles && !isLocked) ? adminUploadBtn(j.id, sec.id, step.id, false) : ''}
+      </div>`;
+    }).join('');
+    const canTick = sec.who==='admin'||sec.who==='both'||sec.who==='installer';
+    return `<div class="section-card ${allDone?'done':''}">
+      <div class="section-header">
+        <div class="section-num ${allDone?'done':anyDone?'inprog':''}">${allDone?'✓':si+1}</div>
+        <div style="flex:1">
+          <div class="section-title ${allDone?'done':''}">${sec.title}</div>
+          <div class="section-subtitle">${sec.subtitle||''}</div>
+        </div>
+        <span class="section-who who-admin">${sec.who==='both'?'Both':sec.who==='installer'?'Installer':'Admin'}</span>
+      </div>
+      <div>${stepsHTML}</div>
+    </div>`;
+  }).join('');
+
+  const rescheduleHTML='';
+
+  // Inline edit fields
+    const _jMeta = [
+    ['Job Number', j.id],
+    ['Location', j.location],
+    ['Vehicle', j.truck||'—'],
+    ['Service Type', j.serviceType||'Installation'],
+    ['Unit Type', j.serviceType==='Inspection'?'N/A':j.unitType||'Basic'],
+    ['Country', j.country||'—'],
+    ['Date', j.date||'—'],
+    ['Time', j.time||'—'],
+    ['Technician', j.technician||'Unassigned'],
+    ['Client', j.clientCompanyName||j.clientName||'—'],
+  ];
+  const _infoHTML = `<div class="card" style="margin-bottom:14px">
+    <div class="card-title">📋 Job Details</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${_jMeta.map(([k,v])=>`<div><div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em">${k}</div><div style="font-size:13px;color:#e2e8f0;margin-top:2px">${v}</div></div>`).join('')}
+    </div>
+  </div>`;
+
+  const editHTML = j.clientConfirmed ? (_infoHTML + `
+    <div style="background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-size:13px;color:#34d399;font-weight:600;margin-bottom:4px">✓ Job Completed</div>
+      <div style="font-size:12px;color:#475569;margin-bottom:10px">This job is complete. Click Edit to unlock changes.</div>
+      <button onclick="window._editUnlocked=window._editUnlocked||{};window._editUnlocked['${j.id}']=true;renderModalContent('${j.id}');" style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 14px;color:#94a3b8;font-size:12px;cursor:pointer">✏️ Edit Job Details</button>
+    </div>`) :
+  `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title">✏️ Edit Job Details</div>
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label">Vehicle No.</label>
+          <input class="form-input" value="${j.truck||''}" onchange="adminEdit('${j.id}','truck',this.value)" style="font-size:12px;padding:7px 10px"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Service Type</label>
+          <select class="form-input" onchange="adminEdit('${j.id}','serviceType',this.value)" style="font-size:12px;padding:7px 10px">
+            <option ${(j.serviceType||'Installation')==='Installation'?'selected':''}>Installation</option>
+            <option ${j.serviceType==='Inspection'?'selected':''}>Inspection</option>
+            <option ${j.serviceType==='Remove and Install'?'selected':''}>Remove and Install</option>
+            <option ${j.serviceType==='Decommissioning'?'selected':''}>Decommissioning</option>
+          </select>
+          </div><div class="form-field" ${j.serviceType==='Inspection'?'style="display:none"':''}>
+          <label class="form-label">Unit Type</label>
+          <select class="form-input" onchange="adminEdit('${j.id}','unitType',this.value)" style="font-size:12px;padding:7px 10px">
+            <option ${j.unitType==='Basic'?'selected':''}>Basic</option>
+            <option ${j.unitType==='Advanced'?'selected':''}>Advanced</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Date</label>
+          <input class="form-input" type="date" value="${j.date||''}" onchange="adminEdit('${j.id}','date',this.value)" style="font-size:12px;padding:7px 10px"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Time</label>
+          <div class="time-picker-wrap">
+            <select class="time-sel form-input" style="flex:1;font-size:12px;padding:7px 5px"
+              onchange="adminEditTime('${j.id}')"  id="admin-time-h-${j.id}"><option value="">HH</option><option value="00">00</option><option value="01">01</option><option value="02">02</option><option value="03">03</option><option value="04">04</option><option value="05">05</option><option value="06">06</option><option value="07">07</option><option value="08">08</option><option value="09">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+            <span style="color:#64748b;font-weight:700">:</span>
+            <select class="time-sel form-input" style="flex:1;font-size:12px;padding:7px 5px"
+              onchange="adminEditTime('${j.id}')" id="admin-time-m-${j.id}"><option value="00">00</option><option value="05">05</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="35">35</option><option value="40">40</option><option value="45">45</option><option value="50">50</option><option value="55">55</option></select>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  // Notes
+  const notesHTML=`
+    <div class="card" style="margin-top:14px">
+      <div class="card-title">📝 Admin Notes</div>
+      ${(j.notes||[]).length?j.notes.map((n,ni)=>`
+        <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #1e293b">
+          <div style="flex:1">
+            <div style="font-size:10px;color:#475569;margin-bottom:3px">${n.date} · ${n.by||'Admin'}</div>
+            <div style="font-size:13px;color:#e2e8f0">${n.text}</div>
+          </div>
+          <button onclick="adminDeleteNote('${j.id}',${ni})" style="background:#2a0f0f;border:none;border-radius:4px;color:#f87171;font-size:11px;padding:3px 7px;cursor:pointer;flex-shrink:0">✕</button>
+        </div>`).join(''):''}
+      ${(window._editUnlocked && window._editUnlocked[j.id]) || !j.clientConfirmed ? `<textarea id="admin-note-area-${j.id}" rows="2" placeholder="Type a note and press Enter to save…"
+        style="width:100%;margin-top:10px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:9px 11px;color:#e2e8f0;font-size:13px;font-family:inherit;resize:vertical"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();adminSaveNote('${j.id}')}"></textarea>
+      <div style="font-size:11px;color:#334155;margin-top:4px">Press Enter to save · Shift+Enter for new line</div>` : `<div style="font-size:12px;color:#334155;font-style:italic">Press Edit to add notes</div>`}
+    </div>`;
+
+  const scheduleThread = '';
+
+  const adminProblemBanner = j.problemReport?.status==='open' ? `
+    <div style="background:#2a0f0f;border:2px solid #f87171;border-radius:12px;padding:16px 18px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:14px;color:#f87171;margin-bottom:6px">⚠ ${j.problemReport.checkpoint==='documents'?'Document':'System'} Problem Reported</div>
+      <div style="font-size:13px;color:#fca5a5;margin-bottom:6px">${j.problemReport.message||j.problemReport.reason||''}</div>
+      <div style="font-size:11px;color:#64748b">Reported ${j.problemReport.reportedAt}</div>
+    </div>` : '';
+  const adminConfirmedBanner = j.clientConfirmed ? `
+    <div style="background:#0a2a1e;border:1px solid #34d39940;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#34d399">
+      ✓ Client confirmed system OK — ${j.clientConfirmedAt}
+    </div>` : '';
+  document.getElementById('modal-job-content').innerHTML=`
+    ${adminProblemBanner}
+    ${j.needsAssignment && !j.technician ? `
+    <div style="background:#1e1130;border:2px solid #c084fc;border-radius:12px;padding:14px 16px;margin-bottom:14px">
+      <div style="font-weight:700;font-size:14px;color:#c084fc;margin-bottom:8px">⚠ No Installer Assigned</div>
+      <div style="font-size:13px;color:#94a3b8;margin-bottom:10px">This job needs an installer. Select one from your team:</div>
+      <div style="display:flex;gap:8px">
+        <select id="assign-sel-${j.id}" class="form-input" style="flex:1;font-size:13px">
+          <option value="">Loading…</option>
+        </select>
+        <button onclick="adminAssignInstaller('${j.id}')" class="btn-primary" style="font-size:13px;padding:8px 16px">Assign</button>
+      </div>
+    </div>` : ''}${adminConfirmedBanner}
+    <div style="margin-bottom:12px;padding:8px 12px;background:#0c1a2a;border-radius:8px;font-size:12px;color:#64748b">
+      👤 Assigned to <b style="color:#f1f5f9">${j.clientName||j.clientCompanyName||'—'}</b> &nbsp;·&nbsp; 🔧 ${j.technician||'TBC'} &nbsp;·&nbsp; 🌍 ${j.country||''}
+    </div>
+    <div style="margin-bottom:14px">${getJobBadge(j)}</div>
+    ${renderActivityLog(j)}
+    ${editHTML}
+    ${checklistHTML}${notesHTML}`;
+}
+
+
+
+async function adminDeleteFile(jobId,secId,stepId,filename){
+  if(!confirm('Remove this file?')) return;
+  const res=await apiFetch(capi(`/jobs/${jobId}/file`),{method:'DELETE',body:JSON.stringify({secId,stepId,filename})});
+  if((await res.json()).ok){
+    const jobRes=await apiFetch(capi(`/jobs/${jobId}`));
+    const updatedJob=await jobRes.json();
+    const idx=jobs.findIndex(j=>j.id===jobId);
+    if(idx>=0) jobs[idx]=updatedJob;
+    renderModalContent(jobId);
+  }
+}
+async function deleteJob(jobId){
+  const job = jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  if(!confirm('Delete '+job.id+' — '+(job.name||job.location)+'?\nThis cannot be undone.')) return;
+  await apiFetch(capi('/jobs/'+jobId),{method:'DELETE'});
+  closeDetail();
+  loadAll();
+}
+
+function adminEditTime(jobId){
+  const h = document.getElementById('admin-time-h-'+jobId)?.value;
+  const m = document.getElementById('admin-time-m-'+jobId)?.value;
+  if(h && m) adminEdit(jobId, 'time', h+':'+m);
+}
+async function adminToggleStep(jobId,secId,stepId,done){
+  const res=await apiFetch(capi(`/jobs/${jobId}/step`),{method:'POST',body:JSON.stringify({secId,stepId,done})});
+  const result=await res.json();
+  // Fetch fresh job data so status updates immediately
+  const jobRes=await apiFetch(capi(`/jobs/${jobId}`));
+  const updatedJob=await jobRes.json();
+  const idx=jobs.findIndex(j=>j.id===jobId);
+  if(idx>=0) jobs[idx]=updatedJob;
+  renderModalContent(jobId);
+  // Also refresh overview counts
+  renderOverview();
+}
+
+async function adminEdit(jobId,field,value){
+  const j=jobs.find(x=>x.id===jobId);
+  if(!j) return;
+  j[field]=value;
+  await apiFetch(capi(`/jobs/${jobId}`),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(j)});
+  loadAll();
+}
+
+async function clearAllMessages() {
+  if (!confirm('Clear all messages?')) return;
+  await apiFetch(capi('/messages'), { method:'DELETE' });
+  loadMessages();
+  document.getElementById('unread-count').textContent = '0';
+  document.getElementById('msg-badge').style.display = 'none';
+  document.getElementById('tc-msgs').textContent = '0';
+}
+
+async function adminSaveNote(jobId) {
+  const area = document.getElementById('admin-note-area-'+jobId);
+  const text = area?.value.trim();
+  if (!text) return;
+  await apiFetch(capi('/jobs/'+jobId+'/note'), {method:'POST', body:JSON.stringify({text})});
+  area.value = '';
+  loadAll();
+  setTimeout(()=>openDetail(jobId), 300);
+}
+async function adminDeleteNote(jobId, idx) {
+  await apiFetch(capi('/jobs/'+jobId+'/note/'+idx), {method:'DELETE'});
+  loadAll();
+  setTimeout(()=>openDetail(jobId), 300);
+}
+
+
+const COUNTRY_INSTALLER_ADMIN = {'South Africa':'Brigade','Zambia':'Zamaka'};
+
+
+async function testEmail(){
+  const btn = document.querySelector('[onclick="testEmail()"]');
+  const orig = btn.textContent;
+  btn.textContent = 'Sending…';
+  btn.disabled = true;
+  try {
+    const to = document.getElementById('s-test-email-to')?.value.trim();
+    if (!to) { alert('Please enter an email address to send the test to.'); btn.textContent=orig; btn.disabled=false; return; }
+    const res  = await apiFetch('/api/test-email', {method:'POST', body:JSON.stringify({to})});
+    const data = await res.json();
+    if(data.ok){
+      alert('✓ Test email sent to: '+data.to+'\n\nCheck your inbox — may take a minute.');
+    } else {
+      alert('✗ Email failed:\n\n'+data.error+'\n\nCheck your email.config.js file.');
+    }
+  } catch(e) {
+    alert('✗ Error: '+e.message);
+  }
+  btn.textContent = orig;
+  btn.disabled = false;
+}
+
+
+function updateAdminServiceForm(){
+  const svc = document.getElementById('an-service')?.value;
+  const wrap = document.getElementById('an-unit-wrap');
+  if(wrap) wrap.style.display = svc==='Inspection'?'none':'';
+}
+document.addEventListener('change', e => {
+  if (e.target.id === 'an-country') {
+    const o = document.getElementById('an-country-other');
+    if (o) o.style.display = e.target.value === '__other__' ? 'block' : 'none';
+    updateJobInstallerHint();
+  }
+});
+async function populateNewJobForm() {
+  try {
+    const res  = await apiFetch(capi('/form-data'));
+    const data = await res.json();
+    const clients    = data.clients    || [];
+    const installers = data.installers || [];
+
+    // Populate client dropdown grouped by company
+    const clientSel = document.getElementById('an-client');
+    if (clientSel) {
+      const companies = {};
+      clients.forEach(u => {
+        const co = u.companyName || u.name;
+        if (!companies[co]) companies[co] = [];
+        companies[co].push(u);
+      });
+      clientSel.innerHTML = '<option value="">Select client…</option>';
+      if (!clients.length) {
+        clientSel.innerHTML = '<option value="">No clients added yet</option>';
+      } else {
+        Object.entries(companies).forEach(([co, members]) => {
+          if (members.length === 1) {
+            clientSel.innerHTML += `<option value="${members[0].clientId}">${co}</option>`;
+          } else {
+            members.forEach(u => {
+              clientSel.innerHTML += `<option value="${u.clientId}">${co} — ${u.name}</option>`;
+            });
+          }
+        });
+      }
+    }
+
+    // Populate country dropdown from installer profiles + Other
+    const countrySel = document.getElementById('an-country');
+    if (countrySel) {
+      const allCountries = [...new Set(installers.flatMap(u=>u.countries||[]))].sort();
+      countrySel.innerHTML = '<option value="">Select country…</option>';
+      if (!allCountries.length) {
+        countrySel.innerHTML += '<option value="" disabled>No installers added yet</option>';
+      } else {
+        allCountries.forEach(co => { countrySel.innerHTML += `<option value="${co}">${co}</option>`; });
+      }
+      countrySel.innerHTML += '<option value="__other__">Other (type below)</option>';
+    }
+  } catch(e) {
+    console.error('Could not load form data:', e);
+  }
+  updateJobInstallerHint();
+}
+
+function openNewJobModal() {
+  document.getElementById('admin-new-modal').classList.add('open');
+  populateNewJobForm();
+}
+function closeNewJobModal() {
+  document.getElementById('admin-new-modal').classList.remove('open');
+}
+function getSelectedCountry() {
+  const sel = document.getElementById('an-country');
+  if (!sel) return '';
+  if (sel.value === '__other__') return document.getElementById('an-country-other')?.value.trim()||'';
+  return sel.value;
+}
+function updateJobInstallerHint() {
+  const country = getSelectedCountry();
+  const noteEl  = document.getElementById('an-installer-note');
+  if (noteEl) noteEl.textContent = country ? 'Installer will be assigned for: '+country : '';
+}
+function updateAdminInstaller() { updateJobInstallerHint(); }
+async function submitAdminJob() {
+  const location = document.getElementById('an-location').value.trim();
+  const date     = document.getElementById('an-date').value;
+  const anTH     = document.getElementById('an-time-h')?.value;
+  const anTM     = document.getElementById('an-time-m')?.value;
+  const time     = (anTH && anTM) ? anTH+':'+anTM : '';
+  const country = getSelectedCountry();
+  if (!location) { alert('Please enter a location.'); return; }
+  if (!country)  { alert('Please select a country.'); return; }
+  if (!date)     { alert('Please select an installation date.'); return; }
+  if (!time)     { alert('Please select an installation time.'); return; }
+  if (!document.getElementById('an-client').value) { alert('Please select a client.'); return; }
+  const btn = document.getElementById('an-submit-btn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  const res = await apiFetch(capi('/jobs'), {
+    method: 'POST',
+    body: JSON.stringify({
+      location,
+      truck:    document.getElementById('an-truck').value.trim(),
+      country:  getSelectedCountry(),
+      date,
+      time:     (()=>{ const h=document.getElementById('an-time-h')?.value; const m=document.getElementById('an-time-m')?.value; return (h&&m)?h+':'+m:''; })(),
+      unitType: document.getElementById('an-unit').value,
+      serviceType: document.getElementById('an-service').value,
+      clientId: document.getElementById('an-client').value,
+    })
+  });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = 'Create Installation';
+  if (data.ok) { closeNewJobModal(); loadAll(); }
+  else alert('Error: ' + (data.error || 'Unknown'));
+}
+
+
+// ── TEAM MANAGEMENT ──────────────────────────────────────────────────────────
+async function loadUsers() {
+  const res = await apiFetch(capi('/users'));
+  const users = await res.json();
+  const rows = Object.values(users).filter(u=>u.role!=='admin');
+  const clients   = rows.filter(u=>u.role==='client');
+  const installers= rows.filter(u=>u.role==='installer');
+
+  function userCard(u) {
+    const isClient = u.role==='client';
+    const color = isClient ? '#38bdf8' : '#a78bfa';
+    const bg    = isClient ? '#0c2a3a' : '#1e1130';
+    const detail= isClient ? (u.companyName||'No company') : ((u.countries||[]).join(', ')||'No countries');
+    return `<div style="background:#0a1220;border:1px solid #1e293b;border-radius:10px;margin-bottom:8px;overflow:hidden">
+      <!-- Summary row -->
+      <div style="padding:14px 16px;display:flex;align-items:center;gap:12px">
+        <div style="width:36px;height:36px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;font-weight:700;color:${color};flex-shrink:0">${(u.companyName||u.name)[0].toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:#f1f5f9">${u.companyName||u.name}</div>
+          <div style="font-size:12px;color:#94a3b8">${u.name}</div>
+        </div>
+        <div style="font-family:monospace;font-size:11px;color:#475569;margin-right:8px">@${u.username}</div>
+        <button style="background:#1e293b;border:none;border-radius:6px;padding:5px 12px;color:#94a3b8;font-size:11px;cursor:pointer" onclick="toggleEditUser('${u.username}')">✏️ Edit</button>
+        <button class="btn-danger" style="font-size:11px;padding:5px 10px" onclick="deleteUser('${u.username}','${u.name}')">✕</button>
+      </div>
+
+      <!-- Read-only details panel (shown when expanded, before edit mode) -->
+      <div id="view-${u.username}" style="display:none;padding:0 16px 14px;border-top:1px solid #1e293b">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+          ${[
+            ['Company',      u.companyName||'—'],
+            ['Full Name',    u.name],
+            ['Username',     u.username],
+            ['Email',        u.email||'—'],
+            ['Password',     u.password||'—'],
+            ...(isClient ? [] : [['Countries', (u.countries||[]).join(', ')||'—']]),
+          ].map(([label,val])=>`
+            <div>
+              <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">${label}</div>
+              <div style="font-size:13px;color:#e2e8f0;background:#1e293b;border-radius:6px;padding:7px 10px">${val}</div>
+            </div>`).join('')}
+        </div>
+        <button class="btn-primary" style="font-size:12px;padding:7px 14px;margin-top:12px" onclick="switchToEdit('${u.username}')">✏️ Edit Details</button>
+      </div>
+
+      <!-- Edit panel (hidden until Edit Details clicked) -->
+      <div id="edit-${u.username}" style="display:none;padding:0 16px 16px;border-top:1px solid #1e293b">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
+          <div class="form-field">
+            <label class="form-label">Company Name</label>
+            <input class="form-input" id="eu-company-${u.username}" value="${u.companyName||''}" style="font-size:12px;padding:7px 10px"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Email</label>
+            <input class="form-input" id="eu-email-${u.username}" value="${u.email||''}" placeholder="email@example.com" style="font-size:12px;padding:7px 10px"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Full Name</label>
+            <input class="form-input" id="eu-name-${u.username}" value="${u.name}" style="font-size:12px;padding:7px 10px"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Username</label>
+            <input class="form-input" id="eu-username-${u.username}" value="${u.username}" style="font-size:12px;padding:7px 10px"/>
+          </div>
+          ${!isClient ? `<div class="form-field" style="grid-column:1/-1"><label class="form-label">Countries (comma separated)</label><input class="form-input" id="eu-countries-${u.username}" value="${(u.countries||[]).join(', ')}" placeholder="e.g. South Africa, Zambia" style="font-size:12px;padding:7px 10px"/></div>` : ''}
+          <div class="form-field">
+            <label class="form-label">New Password (leave blank to keep)</label>
+            <input class="form-input" id="eu-password-${u.username}" placeholder="Enter new password" style="font-size:12px;padding:7px 10px"/>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+          <button class="btn-primary" style="font-size:12px;padding:7px 14px" onclick="saveUser('${u.username}','${u.role}')">Save Changes</button>
+          <button class="btn-secondary" style="font-size:12px;padding:7px 14px" onclick="toggleEditUser('${u.username}')">Cancel</button>
+          <div id="eu-msg-${u.username}" style="font-size:12px;color:#34d399;padding:7px 0"></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+
+  document.getElementById('users-content').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div>
+        <div style="font-size:18px;font-weight:700;color:#f1f5f9">Team Members</div>
+        <div style="font-size:13px;color:#64748b">Manage your clients and installers</div>
+      </div>
+      <button class="btn-primary" onclick="openAddUser()">+ Add Member</button>
+    </div>
+    <div style="margin-bottom:24px">
+      <div style="font-size:14px;font-weight:600;color:#38bdf8;margin-bottom:12px">Clients (${clients.length})</div>
+      ${clients.length ? clients.map(userCard).join('') : '<div style="color:#475569;font-size:13px;padding:12px 0">No clients yet.</div>'}
+    </div>
+    <div>
+      <div style="font-size:14px;font-weight:600;color:#a78bfa;margin-bottom:12px">Installers (${installers.length})</div>
+      ${installers.length ? installers.map(userCard).join('') : '<div style="color:#475569;font-size:13px;padding:12px 0">No installers yet.</div>'}
+    </div>
+  `;
+}
+
+function toggleEditUser(username) {
+  // Toggle the read-only view panel
+  const viewEl = document.getElementById('view-'+username);
+  const editEl = document.getElementById('edit-'+username);
+  const isOpen = viewEl?.style.display !== 'none' || editEl?.style.display !== 'none';
+  if (viewEl) viewEl.style.display = isOpen ? 'none' : 'block';
+  if (editEl) editEl.style.display = 'none';
+}
+function switchToEdit(username) {
+  const viewEl = document.getElementById('view-'+username);
+  const editEl = document.getElementById('edit-'+username);
+  if (viewEl) viewEl.style.display = 'none';
+  if (editEl) editEl.style.display = 'block';
+}
+
+async function saveUser(username, role) {
+  const name       = document.getElementById('eu-name-'+username)?.value.trim();
+  const newUsername= document.getElementById('eu-username-'+username)?.value.trim();
+  const email      = document.getElementById('eu-email-'+username)?.value.trim();
+  const password   = document.getElementById('eu-password-'+username)?.value;
+  const company    = document.getElementById('eu-company-'+username)?.value.trim();
+  const countries  = document.getElementById('eu-countries-'+username)?.value.split(',').map(s=>s.trim()).filter(Boolean);
+  const msgEl      = document.getElementById('eu-msg-'+username);
+  const body       = { name, email, companyName: company };
+  if (password) body.password = password;
+  if (newUsername && newUsername !== username) body.newUsername = newUsername;
+  if (role==='installer') body.countries = countries;
+  const res  = await apiFetch(capi('/users/'+username), { method:'PUT', body:JSON.stringify(body) });
+  const data = await res.json();
+  if (data.ok) { msgEl.textContent='Saved!'; setTimeout(()=>{ msgEl.textContent=''; loadUsers(); },1200); }
+  else { msgEl.style.color='#f87171'; msgEl.textContent=data.error||'Error'; }
+}
+
+function openAddUser() { 
+  ['au-name','au-username','au-password','au-company','au-installer-company','au-countries','au-email'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('au-msg').textContent='';
+  document.getElementById('add-user-modal').classList.add('open'); 
+}
+function closeAddUser() { document.getElementById('add-user-modal').classList.remove('open'); }
+function updateAddUserForm() {
+  const role = document.getElementById('au-role')?.value;
+  if (!role) return;
+  document.getElementById('au-company-wrap').style.display           = role==='client'?'':'none';
+  document.getElementById('au-installer-company-wrap').style.display = role==='installer'?'':'none';
+  document.getElementById('au-countries-wrap').style.display          = role==='installer'?'block':'none';
+}
+async function submitAddUser() {
+  const role     = document.getElementById('au-role').value;
+  const name     = document.getElementById('au-name').value.trim();
+  const username = document.getElementById('au-username').value.trim().toLowerCase();
+  const password = document.getElementById('au-password').value;
+  const email    = document.getElementById('au-email')?.value.trim()||'';
+  const company  = role==='client'
+    ? document.getElementById('au-company')?.value.trim()
+    : document.getElementById('au-installer-company')?.value.trim();
+  const countries= document.getElementById('au-countries')?.value.split(',').map(s=>s.trim()).filter(Boolean);
+  const msgEl    = document.getElementById('au-msg');
+  msgEl.style.color='#f87171';
+  if (!name)     { msgEl.textContent='Full name is required.'; return; }
+  if (!company)  { msgEl.textContent='Company name is required.'; return; }
+  if (!username) { msgEl.textContent='Username is required.'; return; }
+  if (!password) { msgEl.textContent='Password is required.'; return; }
+  if (role==='installer' && (!countries||!countries.length)) { msgEl.textContent='At least one country is required for installers.'; return; }
+  const res = await apiFetch(capi('/users'), { method:'POST', body:JSON.stringify({ role, name, username, password, email, companyName:company, countries }) });
+  const data = await res.json();
+  if (data.ok) { closeAddUser(); loadUsers(); }
+  else { msgEl.textContent = data.error; }
+}
+async function deleteUser(username, name) {
+  if (!confirm('Remove '+name+' from your team?')) return;
+  await apiFetch(capi('/users/'+username), { method:'DELETE' });
+  loadUsers();
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+let _settings = {};
+function populateCurrentCredentials() {
+  const auth = getAuth();
+  if (!auth) return;
+  const uEl = document.getElementById('s-cur-username');
+  const eEl = document.getElementById('s-cur-email');
+  if (uEl) uEl.textContent = auth.username || '—';
+  if (eEl) eEl.textContent = auth.email || '(not set)';
+  // Pre-fill email field with current value
+  const emailField = document.getElementById('s-own-email');
+  if (emailField && auth.email) emailField.value = auth.email;
+}
+async function loadSettings() {
+  const res = await apiFetch(capi('/settings'));
+  _settings = await res.json();
+
+  document.getElementById('settings-content').innerHTML = `
+    <div style="max-width:580px;display:flex;flex-direction:column;gap:20px">
+
+      <!-- Credentials & Profile -->
+      <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:16px">👤 Your Account</div>
+
+        <!-- Current values display -->
+        <div style="background:#050b14;border:1px solid #1e293b;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+          <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;font-size:13px">
+            <span style="color:#475569">Username</span>
+            <span id="s-cur-username" style="color:#e2e8f0;font-family:monospace">—</span>
+            <span style="color:#475569">Email</span>
+            <span id="s-cur-email" style="color:#e2e8f0;font-family:monospace">—</span>
+            <span style="color:#475569">Password</span>
+            <span style="color:#334155">••••••••</span>
+          </div>
+        </div>
+
+        <!-- Edit fields -->
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div>
+            <label class="form-label">Email Address</label>
+            <input class="form-input" id="s-own-email" type="email" placeholder="your@email.com"/>
+            <div style="font-size:11px;color:#475569;margin-top:3px">Receives system notifications and test emails</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <label class="form-label">New Username</label>
+              <input class="form-input" id="s-own-username" placeholder="Leave blank to keep"/>
+            </div>
+            <div>
+              <label class="form-label">New Password</label>
+              <input class="form-input" id="s-own-password" type="password" placeholder="Leave blank to keep"/>
+            </div>
+          </div>
+        </div>
+        <button class="btn-primary" style="margin-top:16px" onclick="saveOwnCredentials()">Save Account</button>
+        <div id="s-own-msg" style="font-size:13px;margin-top:8px"></div>
+      </div>
+
+      <!-- Company & Branding -->
+      <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:16px">🏢 Company Details</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div>
+            <label class="form-label">Company Name</label>
+            <input class="form-input" id="s-company" value="${_settings.companyName||''}"/>
+          </div>
+          <div>
+            <label class="form-label">Admin Name</label>
+            <input class="form-input" id="s-admin" value="${_settings.adminName||''}"/>
+          </div>
+        </div>
+        <button class="btn-primary" style="margin-top:16px" onclick="saveBranding()">Save Company Details</button>
+        <div id="s-brand-msg" style="font-size:13px;margin-top:8px"></div>
+      </div>
+
+      <!-- Email Testing -->
+      <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:4px">✉️ Email Notifications</div>
+        <div style="font-size:13px;color:#64748b;margin-bottom:16px">Team member emails are managed in the <b style="color:#94a3b8">Team</b> tab. Emails are sent via the WebAncher platform.</div>
+        <div style="display:flex;gap:8px">
+          <input class="form-input" id="s-test-email-to" placeholder="Enter email to test..." style="flex:1"/>
+          <button class="btn-secondary" onclick="testEmail()" style="white-space:nowrap">📧 Send Test</button>
+        </div>
+        <div id="s-test-email-msg" style="font-size:13px;margin-top:8px"></div>
+      </div>
+
+    </div>
+  `;
+  // Populate current values immediately after DOM is ready
+  populateCurrentCredentials();
+}DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Trifusion — Admin</title>
+<link rel="stylesheet" href="/shared.css"/>
+<script src="/auth.js"></script>
+<style>
+  .job-card{background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:14px 18px;cursor:pointer;transition:all .15s;margin-bottom:8px}
+  .job-card:hover{background:#0d1829}
+  .job-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:6px}
+  .job-card-left{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .job-card-badge{flex-shrink:0;text-align:right}
+  .job-id{font-family:'DM Mono',monospace;font-size:12px;color:#64748b}
+  .job-name{font-weight:700;font-size:13px;color:#f1f5f9}
+  .job-meta{display:flex;gap:12px;font-size:11px;color:#64748b;flex-wrap:wrap}
+  .stat-card{background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:16px 18px}
+  .stat-value{font-size:26px;font-weight:700}
+  .stat-label{font-size:11px;color:#64748b;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:4px}
+  .step-check-admin{width:17px;height:17px;border-radius:4px;border:2px solid #334155;background:transparent;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+  .step-check-admin.done{background:#34d399;border-color:#34d399}
+  .section-who{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:2px 6px;border-radius:4px;flex-shrink:0}
+  .who-admin{background:#0c2a3a;color:#38bdf8}
+  .who-installer{background:#1e1130;color:#a78bfa}
+
+  .time-picker-wrap{display:flex;gap:6px;align-items:center}
+  .time-sel{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:9px 8px;color:#e2e8f0;font-size:13px;font-family:inherit;cursor:pointer;text-align:center}
+  .time-sel:focus{border-color:#38bdf8;outline:none}
+  .hide-mobile { display:inline; }
+  .show-mobile { display:none; }
+  @media(max-width:600px){
+    .hide-mobile{display:none}
+    .show-mobile{display:inline}
+    .topbar{gap:6px}
+}
+.topbar-brand { display:flex; flex-direction:column; justify-content:center; line-height:1.3; }
+.topbar-brand-company { font-size:13px; font-weight:700; color:#f1f5f9; }
+.topbar-brand-person  { font-size:11px; color:#64748b; font-weight:500; }
+.topbar-centre { position:absolute; left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; line-height:1.3; }
+.topbar-service { font-size:12px; font-weight:600; color:#94a3b8; letter-spacing:.04em; }
+.topbar-portal  { font-size:10px; color:#475569; letter-spacing:.06em; text-transform:uppercase; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div class="topbar">
+    <div class="topbar-logo">
+    <div class="logo-icon" id="topbar-logo-letter">T</div>
+    <div class="topbar-brand">
+      <div class="topbar-brand-company" id="topbar-company">—</div>
+      <div class="topbar-brand-person" id="topbar-person">—</div>
+    </div>
+  </div>
+  <div class="topbar-centre">
+    <div class="topbar-service" id="topbar-org">— Service</div>
+    <div class="topbar-portal">Admin Portal</div>
+  </div>
+  <div class="topbar-spacer"></div>
+  <span id="msg-badge" style="display:none;cursor:pointer" onclick="setMainTab('messages',document.querySelector('[data-tab=messages]'))">
+    <span style="font-size:13px;color:#94a3b8">Messages</span>
+    <span class="badge-count" id="unread-count">0</span>
+  </span>
+  
+  <button class="btn-secondary" onclick="openAddRecord()" style="font-size:13px;padding:7px 14px">📋 Add Record</button>
+  <button class="btn-primary" onclick="openNewJobModal()" style="font-size:13px;padding:7px 14px"><span class="hide-mobile">+ New Service</span><span class="show-mobile">+</span></button>
+  <button class="btn-logout" onclick="tfLogout()">Sign Out</button>
+</div>
+
+<div class="page-wide">
+  <!-- Main tabs -->
+  <div class="tabs" style="margin-bottom:20px">
+    <button class="tab-btn active" data-tab="overview" onclick="setMainTab('overview',this)">Overview</button>
+    <button class="tab-btn" data-tab="jobs" onclick="setMainTab('jobs',this)">All Jobs<span class="tab-count" id="tc-jobs">0</span></button>
+    <button class="tab-btn" data-tab="messages" onclick="setMainTab('messages',this)">Messages<span class="tab-count" id="tc-msgs">0</span></button>
+    <button class="tab-btn" data-tab="users" onclick="setMainTab('users',this)">Team</button>
+    <button class="tab-btn" data-tab="settings" onclick="setMainTab('settings',this)">Settings</button>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div id="tab-overview">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px" id="stat-grid"></div>
+    <div class="overview-cols" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div style="font-weight:600;font-size:13px;color:#94a3b8;margin-bottom:10px">🔴 Needs Attention</div>
+        <div id="attention-list"></div>
+      </div>
+      <div>
+        <div style="font-weight:600;font-size:13px;color:#94a3b8;margin-bottom:10px">📋 Active Installations</div>
+        <div id="today-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALL JOBS -->
+  <div id="tab-jobs" style="display:none">
+    <div style="font-size:12px;color:#475569;margin-bottom:10px">Showing active jobs. Use the Status filter to include completed.</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="position:relative;flex:1;min-width:200px">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#64748b">🔍</span>
+        <input id="search" type="text" placeholder="Search jobs…" class="form-input" style="padding-left:34px;width:100%" oninput="renderJobsTab()"/>
+      </div>
+      <select id="filter-status" class="form-input" style="width:180px" onchange="renderJobsTab()">
+        <option value="">All Statuses (incl. Completed)</option>
+        <option>Pending Acceptance</option>
+        <option>Not Started</option>
+        <option>In Progress</option>
+        <option>Waiting for Docs</option>
+        <option>Ready to Send</option>
+        <option>Completed</option>
+      </select>
+      <select id="filter-client" class="form-input" style="width:140px" onchange="renderJobsTab()">
+        <option value="">All Clients</option>
+      </select>
+      <select id="filter-installer" class="form-input" style="width:140px" onchange="renderJobsTab()">
+        <option value="">All Installers</option>
+        <option>Brigade</option>
+        <option>Zamaka</option>
+      </select>
+    </div>
+    <div id="jobs-list"></div>
+  </div>
+
+  <!-- MESSAGES -->
+  <div id="tab-users" style="display:none">
+    <div id="users-content"></div>
+  </div>
+  <div id="tab-settings" style="display:none">
+    <div id="settings-content"></div>
+  </div>
+  <div id="tab-messages" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-weight:600;font-size:14px;color:#f1f5f9">Activity Log</div>
+      <button class="btn-secondary btn-sm" onclick="markAllRead()">Mark all read</button>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden" id="msg-list"></div>
+  </div>
+</div>
+
+<!-- JOB DETAIL MODAL -->
+<div class="modal-overlay" id="detail-modal" onclick="if(event.target===this)closeDetail()">
+  <div class="modal fade-in" style="width:700px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px">
+      <div class="modal-title" style="margin:0" id="modal-job-title">Job Detail</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-danger btn-sm" onclick="deleteJob(currentJobId)">🗑 Delete</button>
+        <button id="force-complete-btn" style="background:#451a00;border:1px solid #fbbf24;border-radius:7px;padding:5px 12px;color:#fbbf24;font-size:12px;cursor:pointer;display:none" onclick="forceComplete(currentJobId)">⚠ Force Complete</button>
+        <button class="btn-secondary btn-sm" onclick="closeDetail()">✕ Close</button>
+      </div>
+    </div>
+    <div id="modal-job-content"></div>
+  </div>
+</div>
+
+<script>
+
+const _pathParts = window.location.pathname.split('/').filter(Boolean);
+const COMPANY_ID = _pathParts[0] || '';
+function capi(path) { return '/api/' + COMPANY_ID + path; }
+
+
+let _refreshTimer = null;
+function scheduleRefresh() {
+  clearTimeout(_refreshTimer);
+  _refreshTimer = setTimeout(() => { loadAll(); }, 300);
+}
+let jobs=[], currentJobId=null, mainTab='overview';
+
+
+function fileUrl(url) {
+  if (!url) return '#';
+  // Append token to /r2/ URLs so they open in new tabs without auth error
+  if (url.startsWith('/r2/')) {
+    const token = getAuth()?.token || '';
+    return url + '?token=' + token;
+  }
+  return url;
+}
+async function checkAuth() {
+  const auth = getAuth();
+  if (!auth || !auth.token || auth.role !== 'admin') {
+    clearAuth();
+    window.location.href = '/';
+    return;
+  }
+  // Set topbar
+  const _auth = getAuth();
+  const _name = _auth?.name || 'Admin';
+  const _leftComp   = _auth?.companyName || '';
+  const _centreComp = _auth?.companyName || '';
+  const el_co = document.getElementById('topbar-company');
+  const el_pe = document.getElementById('topbar-person');
+  const el_or = document.getElementById('topbar-org');
+  const el_ll = document.getElementById('topbar-logo-letter');
+  if (el_co) el_co.textContent = _leftComp || 'Company';
+  if (el_pe) el_pe.textContent = _name;
+  if (el_or) el_or.textContent = 'A ' + (_centreComp||'—') + ' Service';
+  if (el_ll) el_ll.textContent = (_auth?.companyName||'?')[0].toUpperCase();
+  loadAll();
+  startSSE();
+  setInterval(checkUnread,30000);
+}
+async function _oldLogout(){ try{ await apiFetch('/api/logout'); }catch(e){} clearAuth(); window.location.href='/'; }
+
+let _sseInstance = null;
+function startSSE(){
+  if (_sseInstance) { try { _sseInstance.close(); } catch(e){} }
+  const token=getAuth()?.token||'';
+  const es=new EventSource(capi('/events')+'?token='+token);
+  _sseInstance = es;
+  let _sseConnected = false;
+  es.onopen = () => { if (!_sseConnected) { _sseConnected=true; loadAll(); } };
+  es.onmessage = e=>{try{const d=JSON.parse(e.data);if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message')scheduleRefresh();}catch(ex){}};
+  es.onerror   = ()=>setTimeout(startSSE,3000);
+}
+
+async function loadAll(){
+  try {
+    const r = await apiFetch(capi('/jobs'));
+    if (r.status === 401) { clearAuth(); window.location.href='/'; return; }
+    const data = await r.json();
+    jobs = Array.isArray(data) ? data : [];
+  } catch(e) { console.error('loadJobs error',e); return; }
+  document.getElementById('tc-jobs').textContent=jobs.length;
+  // Rebuild client filter dynamically
+  const _fcEl = document.getElementById('filter-client');
+  if (_fcEl) {
+    const _curVal = _fcEl.value;
+    const _clients = [...new Set(jobs.map(j=>j.clientId).filter(Boolean))];
+    _fcEl.innerHTML = '<option value="">All Clients</option>' +
+      _clients.map(id => {
+        const j = jobs.find(x=>x.clientId===id);
+        const name = j?.clientName||j?.clientCompanyName||id;
+        return `<option value="${id}">${name}</option>`;
+      }).join('');
+    if (_curVal) _fcEl.value = _curVal;
+  }
+  // Always refresh overview stats so attention list stays current
+  renderOverview();
+  if(currentJobId){
+    renderModalContent(currentJobId);
+  }
+  if(mainTab==='jobs') renderJobsTab();
+  if(mainTab==='messages') loadMessages();
+  checkUnread();
+}
+
+async function checkUnread(){
+  const r=await apiFetch(capi('/messages/unread')).then(x=>x.json());
+  const c=r.count;
+  document.getElementById('tc-msgs').textContent=c;
+  document.getElementById('unread-count').textContent=c;
+  document.getElementById('msg-badge').style.display=c>0?'flex':'none';
+}
+
+async function markAllRead(){
+  await apiFetch('/api/messages/read');
+  checkUnread();
+  loadMessages();
+}
+
+function setMainTab(tab,el){
+  mainTab=tab;
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(b=>b.classList.remove('active'));
+  if(el) el.classList.add('active');
+  ['overview','jobs','messages','users','settings'].forEach(t=>{
+    const el=document.getElementById('tab-'+t); if(el) el.style.display=t===tab?'block':'none';
+  });
+  if(tab==='messages') loadMessages();
+  if(tab==='jobs') renderJobsTab();
+  if(tab==='users') loadUsers();
+  if(tab==='settings') loadSettings();
 }
 
 const STATUS_META = {
