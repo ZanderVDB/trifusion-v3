@@ -71,8 +71,8 @@
       </select>
     </div>
   </div>
-  <div id="split-overview" style="display:none"></div>
-  <div id="job-list"></div>
+  <div id="split-overview"></div>
+  <div id="job-list" style="display:none"></div>
 </div>
 
 <div class="page" id="detail-view" style="display:none">
@@ -183,14 +183,17 @@ let _countryInstallers = {}; // loaded dynamically from users
 function jobUrgencyStyle(job){
   if(job.status==='Completed') return '';
   if(!job.date || !job.time) return '';
+  const svc = job.checklist?.find(s=>s.steps?.some(st=>st.id==='service_complete'));
+  if(svc?.steps?.find(st=>st.id==='service_complete')?.done) return '';
   const scheduled = new Date(job.date + 'T' + job.time);
   const now = new Date();
   const diffMins = (scheduled - now) / 60000;
-  if(diffMins < 0 && diffMins > -120) return 'border-color:rgba(251,146,60,.7);box-shadow:0 0 0 1px rgba(251,146,60,.3);';
-  if(diffMins >= 0 && diffMins <= 60) return 'border-color:rgba(251,191,36,.8);box-shadow:0 0 0 1px rgba(251,191,36,.3);';
-  if(diffMins > 60 && diffMins <= 180) return 'border-color:rgba(56,189,248,.5);box-shadow:0 0 0 1px rgba(56,189,248,.2);';
+  if(diffMins <= 0)                          return 'border-color:rgba(248,113,113,.8);box-shadow:0 0 0 1px rgba(248,113,113,.3);';  // at or past time
+  if(diffMins > 0   && diffMins <= 60)       return 'border-color:rgba(251,146,60,.7);box-shadow:0 0 0 1px rgba(251,146,60,.3);'; // within 1hr
+  if(diffMins > 60  && diffMins <= 120)      return 'border-color:rgba(251,191,36,.8);box-shadow:0 0 0 1px rgba(251,191,36,.3);'; // 1-2hr before
   return '';
 }
+
 let jobs = [], currentJobId = null, currentTab = 'active';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
