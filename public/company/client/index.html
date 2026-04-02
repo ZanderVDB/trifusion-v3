@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="/shared.css"/>
 <script src="/auth.js"></script>
 <style>
+  .hide-mobile{display:inline}.show-mobile{display:none}
   .job-card{background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:16px 18px;cursor:pointer;transition:all .15s;margin-bottom:8px}
   .job-card:hover{background:#0d1829;transform:translateY(-1px)}
   .job-card-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
@@ -21,6 +22,96 @@
   .time-picker-wrap{display:flex;gap:6px;align-items:center}
   .time-sel{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:9px 8px;color:#e2e8f0;font-size:13px;font-family:inherit;cursor:pointer;text-align:center}
   .time-sel:focus{border-color:#38bdf8;outline:none}
+
+  /* ── MOBILE RESPONSIVE ─────────────────────────────────── */
+  @media (max-width: 768px) {
+    /* Topbar: hide centre text, compress buttons */
+    .topbar { padding: 0 10px; gap: 6px; height: 52px; }
+    .topbar-centre { display: none; }
+    .topbar-brand-company { font-size: 12px; }
+    .topbar-brand-person { display: none; }
+    .btn-logout { font-size: 11px; padding: 5px 9px; }
+
+    /* Page padding */
+    .page, .page-wide { padding: 10px; }
+
+    /* Tabs: scrollable */
+    .tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+    .tab-btn { flex-shrink: 0; font-size: 12px; padding: 7px 12px; }
+
+    /* Split overview: stack to single column */
+    #split-overview > div > div[style*="grid"] { grid-template-columns: 1fr !important; }
+    .split-cols, .split-cols-grid, [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+    /* Job cards */
+    .job-card { padding: 10px 12px; margin-bottom: 8px; }
+    .job-card-top { gap: 6px; }
+    .job-meta { gap: 8px; flex-wrap: wrap; }
+    .job-name { font-size: 13px; }
+    .job-id { font-size: 11px; }
+
+    /* Stat grid: 2 columns */
+    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
+
+    /* Detail view */
+    .detail-header { flex-direction: column; gap: 8px; }
+    #detail-view .page, #detail-view .page-wide { padding: 10px; }
+
+    /* Checklist steps */
+    .step-row { gap: 8px; padding: 8px 12px; }
+    .step-label { font-size: 12px; }
+    .section-header { padding: 10px 12px; }
+
+    /* Modals: full width */
+    .modal-overlay { padding: 8px; align-items: flex-end; }
+    .modal { 
+      width: 100% !important; 
+      max-width: 100% !important; 
+      max-height: 92vh; 
+      overflow-y: auto; 
+      border-radius: 14px 14px 0 0;
+      padding: 20px 16px;
+      margin: 0;
+    }
+    .modal-btns { flex-direction: column; gap: 8px; }
+    .modal-btns button { width: 100%; }
+    .modal-title { font-size: 15px; }
+
+    /* Form grids: single column */
+    .form-grid { grid-template-columns: 1fr !important; gap: 10px; }
+
+    /* Action buttons: full width on mobile */
+    .action-row { flex-direction: column; gap: 8px; }
+    .action-row button { width: 100%; }
+
+    /* Detail action buttons */
+    .detail-actions { display: flex; flex-direction: column; gap: 8px; }
+    .detail-actions button { width: 100%; }
+
+    /* Upload zones */
+    .upload-zone { padding: 12px; font-size: 12px; }
+
+    /* Overview cols */
+    .overview-cols { grid-template-columns: 1fr !important; gap: 12px; }
+
+    /* Buttons in rows */
+    .btn-row { flex-wrap: wrap; gap: 8px; }
+    
+    /* Time picker */
+    .time-picker-wrap { flex-wrap: wrap; }
+
+    /* Message items */
+    .msg-meta { flex-wrap: wrap; }
+  }
+
+  @media (max-width: 480px) {
+    .topbar { padding: 0 8px; height: 48px; }
+    .page, .page-wide { padding: 8px; }
+    .modal { padding: 16px 12px; }
+    .job-card { padding: 8px 10px; }
+    .tab-btn { font-size: 11px; padding: 6px 10px; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  }
 </style>
 </head>
 <body>
@@ -373,7 +464,7 @@ function renderClientSplitOverview(){
     </div>`;
   };
 
-  ov.innerHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  ov.innerHTML = `<div class="split-cols-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
     <div>
       <div style="font-weight:600;font-size:13px;color:#94a3b8;margin-bottom:10px">🔴 Needs Attention</div>
       ${needsAttn.length ? needsAttn.map(cardHTML).join('') : '<div style="color:#334155;font-size:13px;padding:20px 0">Nothing needs attention</div>'}
