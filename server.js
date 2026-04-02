@@ -195,42 +195,25 @@ function requireCompanyAuth(role) {
 
 
 // Client replies to truck unavailable
-app.post('/api/:companyId/jobs/:id/truck-reply', requireCompanyAuth('client'), (req, res) => {
+app.post('/api/:companyId/jobs/:id/truck-reply', requireCompanyAuth('client'), async (req, res) => {
   const cid = req.params.companyId;
   const { message } = req.body;
   if (!message || !message.trim()) return res.json({ ok:false, error:'Please type a message.' });
   const job = jobAction(cid, req.params.id, (job) => {
     job.clientTruckReply = { message: message.trim(), at: new Date().toLocaleString(), by: req.user.name };
-    addActivity(job, req.user.name, 'client', '💬 Client replied to truck issue', message.trim());
+    addActivity(job, req.user.name, 'client', '💬 Client replied to vehicle issue', message.trim());
   });
   if (!job) return res.status(404).json({ error:'Not found' });
-  // Email triggers based on which step was just ticked
-  const freshJobs = getCompanyJobs(cid);
-  const freshJob  = freshJobs.find(j=>j.id===req.params.id);
-  if (freshJob) {
-    const users = getCompanyUsers(cid);
-    const clientUser = Object.values(users).find(u=>u.clientId===freshJob.clientId);
-    const instEmail  = getUserEmail(cid, freshJob.technician);
-
-    // Installer accepted → email client
-    if (secId==='accepted' && stepId==='job_accepted' && done && clientUser?.email) {
-      const info = `<strong>Job:</strong> ${freshJob.id}<br><strong>Location:</strong> ${freshJob.location}<br><strong>Date:</strong> ${freshJob.date} at ${freshJob.time}<br><strong>Installer:</strong> ${freshJob.technician}`;
-      sendEmail({ to:clientUser.email, subject:`Installer Accepted — ${freshJob.id}`, html:jobLink(jobEmailHtml('Your installer has accepted the job', `${freshJob.technician} has accepted job ${freshJob.id} and will be attending your service. Log in to track progress.`, info)) });
-    }
-
-    // Service complete → email client to confirm system
-    if (secId==='service' && stepId==='service_complete' && done && clientUser?.email) {
-      const info = `<strong>Job:</strong> ${freshJob.id}<br><strong>Location:</strong> ${freshJob.location}<br><strong>Installer:</strong> ${freshJob.technician}`;
-      sendEmail({ to:clientUser.email, subject:`Action Required — Is the system working? (${freshJob.id})`, html:jobLink(jobEmailHtml('Please confirm the system is working', `Your installation at ${freshJob.location} has been completed. Please log in to confirm whether the system is working correctly.`, info)) });
-    }
-
-    // All docs uploaded → email client to review
-    if (secId==='documents' && freshJob.docCheckPending && clientUser?.email) {
-      const info = `<strong>Job:</strong> ${freshJob.id}<br><strong>Location:</strong> ${freshJob.location}`;
-      sendEmail({ to:clientUser.email, subject:`Documents Ready for Review (${freshJob.id})`, html:jobLink(jobEmailHtml('Documents are ready for your review', `Your installer has uploaded all documents for job ${freshJob.id}. Please log in to review and confirm.`, info)) });
+  broadcast(cid, { type:'refresh' });
+  // Email installer that client replied to vehicle issue
+  const trJob = getCompanyJobs(cid).find(j=>j.id===req.params.id);
+  if (trJob) {
+    const instEmail = getUserEmail(cid, trJob.technician);
+    if (instEmail) {
+      const info = `<strong>Job:</strong> ${trJob.id}<br><strong>Client reply:</strong> ${message.trim()}`;
+      sendEmail({ to:instEmail, subject:`Client Replied to Vehicle Issue — ${trJob.id}`, html:jobLink(jobEmailHtml('Client replied to vehicle issue', `${req.user.name} has replied to the vehicle unavailability on job ${trJob.id}. Please log in to review their response and continue.`, info)) });
     }
   }
-  broadcast(cid, { type:'refresh' });
   res.json({ ok:true });
 });
 
@@ -719,7 +702,13 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
     const clientUser = Object.values(users).find(u=>u.clientId===clientId);
     if (clientUser?.email) {
       const cInfo = `<strong>Job:</strong> ${id}<br><strong>Location:</strong> ${location}<br><strong>Date:</strong> ${date} at ${time}<br><strong>Service:</strong> ${serviceType||'Installation'}${unitType?' — '+unitType:''}<br><strong>Assigned installer:</strong> ${assignedTechnician||'To be assigned'}`;
-      sendEmail({ to:clientUser.email, subject:`New Service Scheduled — ${id}`, html:jobLink(jobEmailHtml('A new service has been scheduled for you', `A ${serviceType||'installation'} job has been created for your account at ${location}. Log in to track progress.`, cInfo)) });
+      const byAdmin = req.user.role === 'admin';
+      const cSubject = byAdmin ? `New Service Scheduled For You — ${id}` : `New Service Request Confirmed — ${id}`;
+      const cHeading = byAdmin ? 'A new service has been scheduled for you' : 'Your new service request has been confirmed';
+      const cBody    = byAdmin
+        ? `Your account manager has scheduled a ${serviceType||'installation'} at ${location}. Log in to track progress.`
+        : `Your ${serviceType||'installation'} request at ${location} has been received and confirmed. Log in to track progress.`;
+      sendEmail({ to:clientUser.email, subject:cSubject, html:jobLink(jobEmailHtml(cHeading, cBody, cInfo)) });
     }
   }
   res.json({ ok:true, id });
@@ -944,6 +933,16 @@ app.post('/api/:companyId/jobs/:id/report-problem', requireCompanyAuth('client')
   });
   if (!job) return res.status(404).json({ error:'Not found' });
   broadcast(cid, { type:'refresh' });
+  // Email installer about client problem report
+  const probJob = getCompanyJobs(cid).find(j=>j.id===req.params.id);
+  if (probJob) {
+    const instEmail = getUserEmail(cid, probJob.technician);
+    if (instEmail) {
+      const ptype = req.body.checkpoint === 'documents' ? 'Document' : 'System';
+      const info  = `<strong>Job:</strong> ${probJob.id}<br><strong>Client:</strong> ${req.user.name}<br><strong>Problem:</strong> ${req.body.message||''}`;
+      sendEmail({ to:instEmail, subject:`Client Reported a ${ptype} Problem — ${probJob.id}`, html:jobLink(jobEmailHtml('Client reported a problem', `${req.user.name} has reported a ${ptype.toLowerCase()} issue with job ${probJob.id}. Please log in to address it.`, info)) });
+    }
+  }
   res.json({ ok:true });
 });
 
@@ -1123,7 +1122,7 @@ app.post('/api/:companyId/jobs/:id/reschedule/suggest', requireCompanyAuth('clie
 
 
 // Client responds to installer's reschedule proposal
-app.post('/api/:companyId/jobs/:id/reschedule/respond', requireCompanyAuth('client'), (req, res) => {
+app.post('/api/:companyId/jobs/:id/reschedule/respond', requireCompanyAuth('client'), async (req, res) => {
   const cid = req.params.companyId;
   const { accept } = req.body;
   const job = jobAction(cid, req.params.id, (job) => {
@@ -1155,6 +1154,15 @@ app.post('/api/:companyId/jobs/:id/reschedule/respond', requireCompanyAuth('clie
   });
   if (!job) return res.status(404).json({ error:'Not found' });
   broadcast(cid, { type:'refresh' });
+  // Email: if rejected (counter-proposal), email installer; if accepted, no email needed (already handled by acceptance)
+  const rrJob = getCompanyJobs(cid).find(j=>j.id===req.params.id);
+  if (rrJob && !req.body.accept && req.body.counterDate) {
+    const instEmail = getUserEmail(cid, rrJob.technician);
+    if (instEmail) {
+      const info = `<strong>Job:</strong> ${rrJob.id}<br><strong>Counter-proposed time:</strong> ${req.body.counterDate||''} at ${req.body.counterTime||''}`;
+      sendEmail({ to:instEmail, subject:`Client Counter-Proposed Reschedule — ${rrJob.id}`, html:jobLink(jobEmailHtml('Client suggested a different time', `${req.user.name} has counter-proposed a different time for job ${rrJob.id}. Please log in to accept or suggest another time.`, info)) });
+    }
+  }
   res.json({ ok:true });
 });
 
