@@ -632,7 +632,7 @@ app.get('/api/:companyId/jobs/:id', requireCompanyAuth(), (req, res) => {
   res.json({ ...job, status: computeStatus(job) });
 });
 
-app.post('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
+app.post('/api/:companyId/jobs', requireCompanyAuth(), async (req, res) => {
   const cid = req.params.companyId;
   const { location, truck, country, date, time, unitType, serviceType, clientId, technician } = req.body;
   if (!location||!date||!country) return res.status(400).json({ error:'Location, country and date are required' });
@@ -795,7 +795,7 @@ app.delete('/api/:companyId/jobs/:id', requireCompanyAuth('admin'), (req, res) =
 });
 
 // Assign technician (when multiple installers in country)
-app.post('/api/:companyId/jobs/:id/assign', requireCompanyAuth('admin'), (req, res) => {
+app.post('/api/:companyId/jobs/:id/assign', requireCompanyAuth('admin'), async (req, res) => {
   const cid  = req.params.companyId;
   const jobs = getCompanyJobs(cid);
   const job  = jobs.find(j=>j.id===req.params.id);
@@ -908,6 +908,16 @@ app.post('/api/:companyId/jobs/:id/confirm-ok', requireCompanyAuth('client'), (r
   });
   if (!job) return res.status(404).json({ error:'Not found' });
   broadcast(cid, { type:'refresh' });
+  // Email everyone: job is fully complete
+  const doneJob = getCompanyJobs(cid).find(j=>j.id===req.params.id);
+  if (doneJob) {
+    const doneUsers = getCompanyUsers(cid);
+    const doneCu = Object.values(doneUsers).find(u=>u.clientId===doneJob.clientId);
+    const doneInst = getUserEmail(cid, doneJob.technician);
+    const doneInfo = `<strong>Job:</strong> ${doneJob.id}<br><strong>Location:</strong> ${doneJob.location}<br><strong>Service:</strong> ${doneJob.serviceType||'Installation'}<br><strong>Installer:</strong> ${doneJob.technician}`;
+    if (doneCu?.email) sendEmail({ to:doneCu.email, subject:`Job Completed — ${doneJob.id}`, html:jobLink(jobEmailHtml('Job Successfully Completed ✓', `Job ${doneJob.id} at ${doneJob.location} is now fully complete. All documents have been confirmed. Thank you!`, doneInfo)) });
+    if (doneInst) sendEmail({ to:doneInst, subject:`Job Completed — ${doneJob.id}`, html:jobLink(jobEmailHtml('Job Successfully Completed ✓', `Job ${doneJob.id} at ${doneJob.location} has been confirmed by the client. Great work!`, doneInfo)) });
+  }
   res.json({ ok:true });
 });
 
@@ -1424,7 +1434,7 @@ app.get('/r2/*', async (req, res) => {
 
 
 // ── Admin force-complete ──────────────────────────────────────────────────────
-app.post('/api/:companyId/jobs/:id/force-complete', requireCompanyAuth('admin'), (req, res) => {
+app.post('/api/:companyId/jobs/:id/force-complete', requireCompanyAuth('admin'), async (req, res) => {
   const cid = req.params.companyId;
   const job = jobAction(cid, req.params.id, (job) => {
     // Tick all checklist steps
@@ -1440,6 +1450,16 @@ app.post('/api/:companyId/jobs/:id/force-complete', requireCompanyAuth('admin'),
   });
   if (!job) return res.status(404).json({ error:'Not found' });
   broadcast(cid, { type:'refresh' });
+  // Email everyone: job closed by admin
+  const fcJob = getCompanyJobs(cid).find(j=>j.id===req.params.id);
+  if (fcJob) {
+    const users = getCompanyUsers(cid);
+    const cu = Object.values(users).find(u=>u.clientId===fcJob.clientId);
+    const instEmail = getUserEmail(cid, fcJob.technician);
+    const info = `<strong>Job:</strong> ${fcJob.id}<br><strong>Location:</strong> ${fcJob.location}<br><strong>Service:</strong> ${fcJob.serviceType||'Installation'}<br><strong>Closed by:</strong> Admin`;
+    if (cu?.email) sendEmail({ to:cu.email, subject:`Job Closed by Admin — ${fcJob.id}`, html:jobLink(jobEmailHtml('Job has been closed by admin', `Job ${fcJob.id} at ${fcJob.location} has been administratively closed. ${req.body.reason?'Reason: '+req.body.reason:''}`, info)) });
+    if (instEmail) sendEmail({ to:instEmail, subject:`Job Closed by Admin — ${fcJob.id}`, html:jobLink(jobEmailHtml('Job has been closed by admin', `Job ${fcJob.id} at ${fcJob.location} has been administratively closed. ${req.body.reason?'Reason: '+req.body.reason:''}`, info)) });
+  }
   res.json({ ok:true });
 });
 
