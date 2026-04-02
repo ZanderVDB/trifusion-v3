@@ -309,11 +309,17 @@ function renderSplitOverview(){
   if(!ov) return;
   ov.style.display='block';
 
-  const needsAttn = jobs.filter(j=>j.status!=='Completed'&&(
-    j.truckUnavailable||j.problemReport?.status==='open'||
-    j.rescheduleProposal?.status==='pending'||
-    j.status==='Pending Acceptance'
-  ));
+  const needsAttn = jobs.filter(j=>{
+    if(j.status==='Completed') return false;
+    if(j.truckUnavailable) return true;
+    if(j.problemReport?.status==='open') return true;
+    if(j.rescheduleProposal?.status==='pending') return true;
+    if(j.status==='Pending Acceptance') return true;
+    // Orange = within 1hr, Red = past time
+    const urg = jobUrgencyStyle(j);
+    if(urg.includes('248,113,113') || urg.includes('251,146,60')) return true;
+    return false;
+  });
   const active = jobs.filter(j=>j.status!=='Completed'&&!needsAttn.includes(j));
 
   const cardHTML = (j) => {
@@ -912,6 +918,8 @@ async function markProblemFixed(jobId) {
   renderDetail(jobId);
 }
 checkAuth();
+// Immediately show correct layout before data loads
+renderDashboard();
 </script>
 <div style="position:fixed;bottom:0;left:0;right:0;height:26px;background:#050b14;border-top:1px solid #0d1829;display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:none">
   <span style="font-size:11px;color:#1e293b;letter-spacing:.08em;font-weight:600">POWERED BY</span>
