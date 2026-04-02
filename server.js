@@ -430,12 +430,13 @@ app.get('/api/hq/companies/:companyId/settings', requireAuth('hq'), (req, res) =
 // ── HQ SETTINGS ───────────────────────────────────────────────────────────────
 app.get('/api/hq/settings', requireAuth('hq'), (req, res) => {
   const hq = getHQ();
-  res.json({ resendApiKey: hq.resendApiKey || '' });
+  res.json({ resendApiKey: hq.resendApiKey || '', fromEmail: hq.fromEmail || '' });
 });
 
 app.put('/api/hq/settings', requireAuth('hq'), (req, res) => {
   const hq = getHQ();
   if (req.body.resendApiKey !== undefined) hq.resendApiKey = req.body.resendApiKey;
+  if (req.body.fromEmail !== undefined) hq.fromEmail = req.body.fromEmail;
   writeJSON(path.join(DB_DIR, 'superadmin', 'hq.json'), hq);
   res.json({ ok:true });
 });
@@ -1334,6 +1335,52 @@ app.post('/api/:companyId/jobs/:id/force-complete', requireCompanyAuth('admin'),
   if (!job) return res.status(404).json({ error:'Not found' });
   broadcast(cid, { type:'refresh' });
   res.json({ ok:true });
+});
+
+
+// ── Email via Resend ──────────────────────────────────────────────────────────
+async function sendEmail({ to, subject, html }) {
+  const hq = getHQ();
+  const apiKey = process.env.RESEND_API_KEY || hq.resendApiKey || '';
+  const from   = process.env.FROM_EMAIL     || hq.fromEmail    || 'notification@web-anchor.com';
+  if (!apiKey || !to) return { ok:false, error: !apiKey ? 'No API key configured' : 'No recipient' };
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer '+apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to, subject, html })
+    });
+    const data = await res.json();
+    if (data.id) return { ok:true, id:data.id };
+    return { ok:false, error: data.message || JSON.stringify(data) };
+  } catch(e) {
+    return { ok:false, error: e.message };
+  }
+}
+
+function jobEmailHtml(heading, body, jobInfo) {
+  return `<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f6f9;padding:24px">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:28px;border:1px solid #e2e8f0">
+    <div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:#64748b;margin-bottom:12px">TRIFUSION</div>
+    <h2 style="color:#1e293b;margin:0 0 12px">${heading}</h2>
+    <p style="color:#475569;line-height:1.6;margin:0 0 16px">${body}</p>
+    ${jobInfo ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;color:#374151">${jobInfo}</div>` : ''}
+    <p style="font-size:11px;color:#94a3b8;margin:0">Powered by WebAncher</p>
+  </div></body></html>`;
+}
+
+
+app.post('/api/test-email', requireAuth(), async (req, res) => {
+  const { to } = req.body;
+  const toEmail = to || req.user.email || '';
+  if (!toEmail) return res.json({ ok:false, error:'Please enter an email address to test with.' });
+  const result = await sendEmail({
+    to: toEmail,
+    subject: 'Trifusion — Test Email ✓',
+    html: jobEmailHtml('Test Email', 'This is a test email from your Trifusion system. If you received this, your email sending is working correctly! ✓', '<strong>From:</strong> Trifusion via WebAncher')
+  });
+  if (result.ok) res.json({ ok:true, to:toEmail });
+  else res.json({ ok:false, error:result.error });
 });
 
 // ── PAGE ROUTES ───────────────────────────────────────────────────────────────

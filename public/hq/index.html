@@ -102,6 +102,10 @@
           <label class="form-label">Resend API Key</label>
           <input class="form-input" id="hq-resend-key" type="password" placeholder="re_xxxxxxxxxx"/>
         </div>
+        <div class="form-field" style="margin-bottom:16px">
+          <label class="form-label">From Email Address</label>
+          <input class="form-input" id="hq-from-email" placeholder="notification@web-anchor.com"/>
+        </div>
         <button class="btn-primary" onclick="saveHQSettings()">Save</button>
         <div id="hq-settings-msg" style="font-size:13px;margin-top:10px"></div>
       </div>
@@ -493,7 +497,7 @@ async function loadHQSettings() {
 }
 async function saveHQSettings() {
   const key  = document.getElementById('hq-resend-key')?.value.trim();
-  const res  = await apiFetch('/api/hq/settings', { method:'PUT', body:JSON.stringify({ resendApiKey:key }) });
+  const res  = await apiFetch('/api/hq/settings', { method:'PUT', body:JSON.stringify({ resendApiKey:key, fromEmail:document.getElementById('hq-from-email')?.value.trim() }) });
   const data = await res.json();
   const msg  = document.getElementById('hq-settings-msg');
   if (data.ok) { msg.style.color='#34d399'; msg.textContent='Saved!'; setTimeout(()=>msg.textContent='',2000); }

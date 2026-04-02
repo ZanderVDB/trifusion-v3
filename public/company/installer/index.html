@@ -158,7 +158,7 @@ function fileUrl(url) {
   }
   return url;
 }
-async function checkAuth() {
+async function initPortal() {
   const auth = getAuth();
   if (!auth || !auth.token || auth.role !== 'installer') { clearAuth(); window.location.href='/'; return; }
   if (auth.companyId && auth.companyId !== COMPANY_ID) { clearAuth(); window.location.href='/'; return; }
@@ -917,8 +917,8 @@ async function markProblemFixed(jobId) {
   const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
   renderDetail(jobId);
 }
-checkAuth();
-// Immediately show correct layout before data loads
+initPortal();
+// Show split layout immediately before data loads
 renderDashboard();
 </script>
 <div style="position:fixed;bottom:0;left:0;right:0;height:26px;background:#050b14;border-top:1px solid #0d1829;display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:none">

@@ -818,7 +818,9 @@ async function testEmail(){
   btn.textContent = 'Sending…';
   btn.disabled = true;
   try {
-    const res  = await apiFetch('/api/test-email', {method:'POST'});
+    const to = document.getElementById('s-test-email-to')?.value.trim();
+    if (!to) { alert('Please enter an email address to send the test to.'); btn.textContent=orig; btn.disabled=false; return; }
+    const res  = await apiFetch('/api/test-email', {method:'POST', body:JSON.stringify({to})});
     const data = await res.json();
     if(data.ok){
       alert('✓ Test email sent to: '+data.to+'\n\nCheck your inbox — may take a minute.');
@@ -1174,7 +1176,10 @@ async function loadSettings() {
         <div style="font-size:13px;color:#64748b">Email addresses are managed per team member. Go to the <b style="color:#94a3b8">Team</b> tab and edit each person to set their notification email.</div>
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid #1e293b">
           <div style="font-size:12px;color:#64748b;margin-bottom:8px">Emails are sent via the WebAncher platform. No additional setup required.</div>
-          <button class="btn-secondary" style="font-size:12px" onclick="testEmail()">📧 Send Test Email</button>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input class="form-input" id="s-test-email-to" placeholder="Enter email to test..." style="font-size:12px;padding:6px 10px;flex:1"/>
+            <button class="btn-secondary" style="font-size:12px" onclick="testEmail()">📧 Send Test</button>
+          </div>
           <div id="s-test-email-msg" style="font-size:13px;margin-top:8px"></div>
         </div>
       </div>
