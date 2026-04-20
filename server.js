@@ -4,6 +4,9 @@ const path     = require('path');
 const fs       = require('fs');
 const crypto   = require('crypto');
 const multer   = require('multer');
+const bcrypt   = require('bcrypt');
+
+const BASE_URL = process.env.BASE_URL || 'https://web-production-49349.up.railway.app';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -65,6 +68,19 @@ function getHQ() {
   return readJSON(path.join(DB_DIR, 'superadmin', 'hq.json'), {});
 }
 
+
+// ── HTML escape (prevents user content becoming live HTML in emails) ──────────
+function escapeHtml(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Password helpers ──────────────────────────────────────────────────────────
+function hashPassword(plain) { return bcrypt.hashSync(plain, 10); }
+function checkPassword(plain, stored) {
+  if (!plain || !stored) return false;
+  if (stored.startsWith('$2b$') || stored.startsWith('$2a$')) return bcrypt.compareSync(plain, stored);
+  return plain === stored; // plain-text fallback for legacy passwords
+}
 
 // ── Activity log ──────────────────────────────────────────────────────────────
 function addActivity(job, who, role, event, detail='') {
@@ -148,18 +164,6 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }
 });
-const _unusedDiskStorage = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => {
-      const cid = req.params.companyId || req.user?.companyId || 'general';
-      const dir = path.join(UPL_DIR, cid);
-      fs.mkdirSync(dir, { recursive: true });
-      cb(null, dir);
-    },
-    filename: (req, file, cb) => cb(null, Date.now()+'_'+file.originalname.replace(/[^a-zA-Z0-9._-]/g,'_'))
-  }),
-  limits: { fileSize: 20*1024*1024 }
-});
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 function requireAuth(role) {
@@ -210,7 +214,7 @@ app.post('/api/:companyId/jobs/:id/truck-reply', requireCompanyAuth('client'), a
   if (trJob) {
     const instEmail = getUserEmail(cid, trJob.technician);
     if (instEmail) {
-      const info = `<strong>Job:</strong> ${trJob.id}<br><strong>Client reply:</strong> ${message.trim()}`;
+      const info = `<strong>Job:</strong> ${trJob.id}<br><strong>Client reply:</strong> ${escapeHtml(message.trim())}`;
       sendEmail({ to:instEmail, subject:`Client Replied to Vehicle Issue — ${trJob.id}`, html:jobLink(jobEmailHtml('Client replied to vehicle issue', `${req.user.name} has replied to the vehicle unavailability on job ${trJob.id}. Please log in to review their response and continue.`, info)) });
     }
   }
@@ -232,7 +236,7 @@ app.post('/api/login', (req, res) => {
 
   // Check HQ login
   const hq = getHQ();
-  if (username === hq.username && password === hq.password) {
+  if (username === hq.username && checkPassword(password, hq.password)) {
     const token = crypto.randomBytes(32).toString('hex');
     tokenStore[token] = { username, role:'hq', name: hq.name, companyId: null };
     saveTokens();
@@ -244,7 +248,12 @@ app.post('/api/login', (req, res) => {
   for (const company of companies) {
     const users = getCompanyUsers(company.companyId);
     const user  = users[username];
-    if (user && user.password === password) {
+    if (user && checkPassword(password, user.password)) {
+      // Auto-upgrade plain-text password to bcrypt hash on first login
+      if (user.password && !user.password.startsWith('$2b$') && !user.password.startsWith('$2a$')) {
+        user.password = hashPassword(password);
+        saveCompanyUsers(company.companyId, users);
+      }
       const token = crypto.randomBytes(32).toString('hex');
       const settings = getCompanySettings(company.companyId);
       tokenStore[token] = {
@@ -373,7 +382,7 @@ app.post('/api/hq/signups/:username/approve', requireAuth('hq'), (req, res) => {
 
   // Create admin user
   const users = {};
-  users[s.username] = { username:s.username, password:s.password, role:'admin', name:s.adminName, companyId:uniqueId };
+  users[s.username] = { username:s.username, password:hashPassword(s.password), role:'admin', name:s.adminName, companyId:uniqueId };
   saveCompanyUsers(uniqueId, users);
   saveCompanyJobs(uniqueId, []);
   saveCompanySettings(uniqueId, {
@@ -409,7 +418,7 @@ app.post('/api/hq/companies', requireAuth('hq'), (req, res) => {
   fs.mkdirSync(path.join(UPL_DIR, companyId), { recursive: true });
 
   const users = {};
-  users[username] = { username, password, role:'admin', name:adminName, companyId };
+  users[username] = { username, password: hashPassword(password), role:'admin', name:adminName, companyId };
   saveCompanyUsers(companyId, users);
   saveCompanyJobs(companyId, []);
   saveCompanySettings(companyId, {
@@ -494,7 +503,7 @@ app.post('/api/:companyId/users', requireCompanyAuth('admin'), (req, res) => {
   const users = getCompanyUsers(cid);
   if (users[username]) return res.json({ ok:false, error:'Username already exists' });
 
-  const newUser = { username, password, role, name, companyId:cid, email:req.body.email||'', createdAt:new Date().toISOString().slice(0,10) };
+  const newUser = { username, password: hashPassword(password), role, name, companyId:cid, email:req.body.email||'', createdAt:new Date().toISOString().slice(0,10) };
   if (role === 'client') {
     newUser.clientId = username;
     newUser.companyName = companyName || '';
@@ -515,8 +524,9 @@ app.put('/api/:companyId/users/:username', requireCompanyAuth('admin'), (req, re
   if (!users[req.params.username]) return res.json({ ok:false, error:'User not found' });
   const oldUsername = req.params.username;
   const { newUsername } = req.body;
-  const allowed = ['password','name','companyName','countries','email'];
+  const allowed = ['name','companyName','countries','email'];
   allowed.forEach(k => { if (req.body[k] !== undefined) users[oldUsername][k] = req.body[k]; });
+  if (req.body.password) users[oldUsername].password = hashPassword(req.body.password);
   // Handle username change
   if (newUsername && newUsername !== oldUsername) {
     if (users[newUsername]) return res.json({ ok:false, error:'Username already taken' });
@@ -974,7 +984,7 @@ app.post('/api/:companyId/jobs/:id/report-problem', requireCompanyAuth('client')
     const instEmail = getUserEmail(cid, probJob.technician);
     if (instEmail) {
       const ptype = req.body.checkpoint === 'documents' ? 'Document' : 'System';
-      const info  = `<strong>Job:</strong> ${probJob.id}<br><strong>Client:</strong> ${req.user.name}<br><strong>Problem:</strong> ${req.body.message||''}`;
+      const info  = `<strong>Job:</strong> ${probJob.id}<br><strong>Client:</strong> ${escapeHtml(req.user.name)}<br><strong>Problem:</strong> ${escapeHtml(req.body.message||'')}`;
       sendEmail({ to:instEmail, subject:`Client Reported a ${ptype} Problem — ${probJob.id}`, html:jobLink(jobEmailHtml('Client reported a problem', `${req.user.name} has reported a ${ptype.toLowerCase()} issue with job ${probJob.id}. Please log in to address it.`, info)) });
     }
   }
@@ -984,7 +994,7 @@ app.post('/api/:companyId/jobs/:id/report-problem', requireCompanyAuth('client')
     const adminEmail = getAdminEmail(cid);
     if (adminEmail) {
       const ptype2 = req.body.checkpoint === 'documents' ? 'Document' : 'System';
-      const aInfo2 = `<strong>Job:</strong> ${probJob2.id}<br><strong>Client:</strong> ${req.user.name}<br><strong>Problem type:</strong> ${ptype2}<br><strong>Message:</strong> ${req.body.message||''}`;
+      const aInfo2 = `<strong>Job:</strong> ${probJob2.id}<br><strong>Client:</strong> ${escapeHtml(req.user.name)}<br><strong>Problem type:</strong> ${ptype2}<br><strong>Message:</strong> ${escapeHtml(req.body.message||'')}`;
       sendEmail({ to:adminEmail, subject:`Problem Reported on ${probJob2.id}`, html:jobLink(jobEmailHtml('A client has reported a problem', `${req.user.name} reported a ${ptype2.toLowerCase()} issue on job ${probJob2.id}. The installer has been notified.`, aInfo2)) });
     }
   }
@@ -1013,7 +1023,7 @@ app.post('/api/:companyId/jobs/:id/problem-fixed', requireCompanyAuth('installer
   if (fixedJob) {
     const clientUser = Object.values(getCompanyUsers(cid)).find(u=>u.clientId===fixedJob.clientId);
     if (clientUser?.email) {
-      const info = `<strong>Job:</strong> ${fixedJob.id}<br><strong>Resolution:</strong> ${req.body.message||'Issue has been addressed'}`;
+      const info = `<strong>Job:</strong> ${fixedJob.id}<br><strong>Resolution:</strong> ${escapeHtml(req.body.message||'Issue has been addressed')}`;
       sendEmail({ to:clientUser.email, subject:`Issue Addressed — Please Re-confirm (${fixedJob.id})`, html:jobLink(jobEmailHtml('The issue has been addressed', `Your installer has addressed the problem with job ${fixedJob.id}. Please log in to confirm whether everything is now working correctly.`, info)) });
     }
   }
@@ -1291,20 +1301,6 @@ app.delete('/api/:companyId/jobs/:id/file', requireCompanyAuth(), async (req, re
 });
 
 
-// Client replies to truck unavailable
-app.post('/api/:companyId/jobs/:id/truck-reply', requireCompanyAuth('client'), (req, res) => {
-  const cid = req.params.companyId;
-  const { message } = req.body;
-  if (!message || !message.trim()) return res.json({ ok:false, error:'Please type a message.' });
-  const job = jobAction(cid, req.params.id, (job) => {
-    job.clientTruckReply = { message: message.trim(), at: new Date().toLocaleString(), by: req.user.name };
-    addActivity(job, req.user.name, 'client', '💬 Client replied to truck issue', message.trim());
-  });
-  if (!job) return res.status(404).json({ error:'Not found' });
-  broadcast(cid, { type:'refresh' });
-  res.json({ ok:true });
-});
-
 // ── SSE ───────────────────────────────────────────────────────────────────────
 app.get('/api/:companyId/events', (req, res) => {
   const auth  = req.headers['authorization'] || req.query.token || '';
@@ -1421,7 +1417,7 @@ app.post('/api/hq/companies/:companyId/users/:username/credentials', requireAuth
   const user  = users[req.params.username];
   if (!user) return res.json({ ok:false, error:'User not found' });
   const { newUsername, newPassword } = req.body;
-  if (newPassword) user.password = newPassword;
+  if (newPassword) user.password = hashPassword(newPassword);
   if (newUsername && newUsername !== req.params.username) {
     if (users[newUsername]) return res.json({ ok:false, error:'Username already taken' });
     users[newUsername] = { ...user, username:newUsername };
@@ -1443,7 +1439,7 @@ app.post('/api/hq/companies/:companyId/users/:username/credentials', requireAuth
 app.post('/api/hq/credentials', requireAuth('hq'), (req, res) => {
   const { newUsername, newPassword } = req.body;
   const hq = getHQ();
-  if (newPassword) hq.password = newPassword;
+  if (newPassword) hq.password = hashPassword(newPassword);
   if (newUsername) hq.username = newUsername;
   writeJSON(path.join(DB_DIR, 'superadmin', 'hq.json'), hq);
   // Invalidate token so they log in again
@@ -1583,7 +1579,7 @@ function getAdminEmail(cid) {
 }
 
 function jobLink(html) {
-  return html + `<p style="margin-top:16px"><a href="https://web-production-49349.up.railway.app" style="background:#1e4d8c;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open Trifusion Portal →</a></p>`;
+  return html + `<p style="margin-top:16px"><a href="${BASE_URL}" style="background:#1e4d8c;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open Trifusion Portal →</a></p>`;
 }
 // ── PAGE ROUTES ───────────────────────────────────────────────────────────────
 app.get('/',         (req,res) => res.sendFile(path.join(PUBLIC_DIR,'login.html')));
@@ -1665,6 +1661,60 @@ function seedDatabase() {
       if (patched) { writeJSON(uFile2, u2); console.log('[SEED] Patched installer companyNames'); }
     }
   } catch(e) {}
+  // ── Seed test company (created if it doesn't already exist) ──────────────────
+  const testCid = 'testing';
+  const testDir = path.join(DB_DIR, 'companies', testCid);
+  const testUsersFile = path.join(testDir, 'users.json');
+  if (!fs.existsSync(testUsersFile)) {
+    fs.mkdirSync(testDir, { recursive: true });
+    fs.mkdirSync(path.join(UPL_DIR, testCid), { recursive: true });
+
+    const testUsers = {
+      testadmin: { username:'testadmin', password:hashPassword('Test@admin1'), role:'admin', name:'Test Admin', companyId:testCid, email:'', createdAt:'2025-01-01' },
+      testclient: { username:'testclient', password:hashPassword('Test@client1'), role:'client', name:'Alice Test', clientId:'testclient', companyName:'Test Client Co', companyId:testCid, email:'', createdAt:'2025-01-01' },
+      testclient2: { username:'testclient2', password:hashPassword('Test@client2'), role:'client', name:'Bob Test', clientId:'testclient2', companyName:'Test Client 2', companyId:testCid, email:'', createdAt:'2025-01-01' },
+      testinstaller: { username:'testinstaller', password:hashPassword('Test@install1'), role:'installer', name:'Test Installer', installer:'Test Installer', companyName:'Test Install Co', countries:['South Africa','Zambia'], companyId:testCid, email:'', createdAt:'2025-01-01' },
+    };
+    writeJSON(testUsersFile, testUsers);
+
+    const mkChecklist = (acceptDone, preDone, serviceDone) => ([
+      { id:'accepted', title:'Service Acceptance', subtitle:'Installer confirms the job', who:'installer', steps:[
+        { id:'job_accepted', label:'Accept this service', done:acceptDone }
+      ]},
+      { id:'pre', title:'Pre-Service Confirmation', subtitle:'Complete approx. 1 hour before service', who:'installer', steps:[
+        { id:'pre_confirm', label:'Confirm service is still happening', done:preDone }
+      ]},
+      { id:'service', title:'Service Check', subtitle:'Complete during the service', who:'installer', steps:[
+        { id:'tech_onsite',      label:'Technician confirmed on-site', done:serviceDone },
+        { id:'truck_onsite',     label:'Vehicle / truck confirmed on-site', done:serviceDone },
+        { id:'service_complete', label:'Service complete', done:serviceDone }
+      ]},
+      { id:'documents', title:'Post-Service Documents', subtitle:'Upload after service is complete', who:'both', steps:[
+        { id:'doc_job_card',  label:'Job card', done:false, requiresUpload:true, uploadedFiles:[] },
+        { id:'doc_checklist', label:'Inspection checklist', done:false, requiresUpload:true, uploadedFiles:[] },
+        { id:'doc_images',    label:'Images of job', done:false, requiresUpload:true, multipleFiles:true, uploadedFiles:[] },
+        { id:'doc_notes',     label:'Additional notes', done:false, isTextNote:true }
+      ]}
+    ]);
+
+    const testJobs = [
+      { id:'JOB-001', technician:'Test Installer', clientId:'testclient', clientName:'Alice Test', clientCompanyName:'Test Client Co', location:'123 Test Street, Johannesburg', date:'2026-05-01', time:'09:00', serviceType:'Installation', checklist:mkChecklist(false,false,false), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'01/05/2026, 08:00:00' }], createdAt:'2026-05-01' },
+      { id:'JOB-002', technician:'Test Installer', clientId:'testclient', clientName:'Alice Test', clientCompanyName:'Test Client Co', location:'456 Sample Ave, Cape Town', date:'2026-05-02', time:'10:00', serviceType:'Installation', checklist:mkChecklist(true,true,false), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'01/05/2026, 09:00:00' }, { who:'Test Installer', role:'installer', event:'✅ Accepted job', detail:'', at:'01/05/2026, 10:00:00' }], createdAt:'2026-05-01' },
+      { id:'JOB-003', technician:'Test Installer', clientId:'testclient2', clientName:'Bob Test', clientCompanyName:'Test Client 2', location:'789 Demo Road, Durban', date:'2026-05-03', time:'08:00', serviceType:'Maintenance', checklist:mkChecklist(true,true,true), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'02/05/2026, 08:00:00' }, { who:'Test Installer', role:'installer', event:'✅ Service complete', detail:'', at:'02/05/2026, 14:00:00' }], createdAt:'2026-05-02' },
+      { id:'JOB-004', technician:'Test Installer', clientId:'testclient2', clientName:'Bob Test', clientCompanyName:'Test Client 2', location:'10 Alpha Blvd, Pretoria', date:'2026-05-04', time:'11:00', serviceType:'Installation', systemOk:true, checklist:mkChecklist(true,true,true), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'03/05/2026, 08:00:00' }, { who:'testclient2', role:'client', event:'✅ System confirmed working', detail:'', at:'03/05/2026, 15:00:00' }], createdAt:'2026-05-03' },
+      { id:'JOB-005', technician:'Test Installer', clientId:'testclient', clientName:'Alice Test', clientCompanyName:'Test Client Co', location:'22 Beta Close, Sandton', date:'2026-04-15', time:'09:00', serviceType:'Installation', systemOk:true, clientConfirmed:true, docCheckPending:false, checklist:mkChecklist(true,true,true), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'14/04/2026, 08:00:00' }, { who:'testclient', role:'client', event:'✅ Job confirmed complete', detail:'', at:'15/04/2026, 16:00:00' }], createdAt:'2026-04-14' },
+    ];
+    writeJSON(path.join(testDir, 'jobs.json'), testJobs);
+    writeJSON(path.join(testDir, 'settings.json'), { companyId:testCid, companyName:'Testing Company', adminName:'Test Admin', status:'active', createdAt:'2025-01-01', branding:{ logoUrl:null }, emails:{ adminEmail:'', clientEmail:'', installerEmail:'', resendApiKey:'' } });
+
+    const allCompanies = getCompanies();
+    if (!allCompanies.find(c=>c.companyId===testCid)) {
+      allCompanies.push({ companyId:testCid, companyName:'Testing Company', adminName:'Test Admin', status:'active', createdAt:'2025-01-01' });
+      saveCompanies(allCompanies);
+    }
+    console.log('[SEED] Created test company with 4 users and 5 test jobs');
+  }
+
   console.log('[SEED] Database check complete');
 }
 
