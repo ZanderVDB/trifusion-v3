@@ -224,8 +224,6 @@
       </select>
       <select id="filter-installer" class="form-input" style="width:140px" onchange="renderJobsTab()">
         <option value="">All Installers</option>
-        <option>Brigade</option>
-        <option>Zamaka</option>
       </select>
     </div>
     <div id="jobs-list"></div>
@@ -318,6 +316,7 @@ async function checkAuth() {
     }
   } catch(e) {}
   loadAll();
+  refreshCountryInstallerMap();
   startSSE();
   setInterval(checkUnread,30000);
 }
@@ -343,6 +342,19 @@ async function loadAll(){
     jobs = Array.isArray(data) ? data : [];
   } catch(e) { console.error('loadJobs error',e); return; }
   document.getElementById('tc-jobs').textContent=jobs.length;
+  // Rebuild installer filter dynamically from form-data
+  try {
+    const _fdRes = await apiFetch(capi('/form-data'));
+    const _fdData = await _fdRes.json();
+    const _fiEl = document.getElementById('filter-installer');
+    if (_fiEl) {
+      const _curFi = _fiEl.value;
+      const _installers = (_fdData.installers || []).map(u => u.installer || u.name).filter(Boolean);
+      _fiEl.innerHTML = '<option value="">All Installers</option>' +
+        _installers.map(n => `<option value="${n}">${n}</option>`).join('');
+      if (_curFi) _fiEl.value = _curFi;
+    }
+  } catch(e) {}
   // Rebuild client filter dynamically
   const _fcEl = document.getElementById('filter-client');
   if (_fcEl) {
@@ -931,7 +943,18 @@ async function adminDeleteNote(jobId, idx) {
 }
 
 
-const COUNTRY_INSTALLER_ADMIN = {'South Africa':'Brigade','Zambia':'Zamaka'};
+let COUNTRY_INSTALLER_ADMIN = {};
+async function refreshCountryInstallerMap() {
+  try {
+    const res = await apiFetch(capi('/form-data'));
+    const data = await res.json();
+    const map = {};
+    (data.installers || []).forEach(u => {
+      (u.countries || []).forEach(c => { if (!map[c]) map[c] = u.installer || u.name; });
+    });
+    COUNTRY_INSTALLER_ADMIN = map;
+  } catch(e) {}
+}
 
 
 async function testEmail(){

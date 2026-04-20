@@ -276,7 +276,7 @@ function renderSignups() {
       </div>
       <div class="pending-detail">👤 Admin: <b style="color:#f1f5f9">${s.adminName}</b></div>
       <div class="pending-detail">🔑 Username: <b style="color:#f1f5f9">${s.username}</b></div>
-      <div class="pending-detail">🔒 Password: <b style="color:#f1f5f9">${s.password}</b></div>
+      <div class="pending-detail">🔒 Password: <b style="color:#f1f5f9">••••••</b></div>
       ${s.email?`<div class="pending-detail">✉ Email: <b style="color:#f1f5f9">${s.email}</b></div>`:''}
       <div class="pending-actions">
         <button class="btn-success" style="flex:1" onclick="approveSignup('${s.username}')">✓ Approve & Activate</button>
@@ -414,7 +414,7 @@ async function loadDetailUsers(cid) {
       ${adminUsers.map(u=>`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <span style="color:#f1f5f9;font-weight:600;min-width:100px">${u.name}</span>
         <span style="font-family:monospace;color:#e2e8f0">@${u.username}</span>
-        <span style="font-family:monospace;color:#fbbf24;background:#1e293b;padding:2px 8px;border-radius:4px">${u.password}</span>
+        <span style="font-family:monospace;color:#fbbf24;background:#1e293b;padding:2px 8px;border-radius:4px">••••••</span>
         <button style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:4px 10px;color:#94a3b8;font-size:11px;cursor:pointer;margin-left:auto" onclick="openEditAdminCreds('${cid}','${u.username}','${u.name}')">✏️ Edit</button>
       </div>`).join('')}
     </div>` : ''}
@@ -424,7 +424,7 @@ async function loadDetailUsers(cid) {
         ${rows.filter(u=>u.role!=='admin').map(u=>`<tr>
           <td style="color:#f1f5f9;font-weight:600">${u.name}</td>
           <td style="font-family:monospace;color:#e2e8f0">${u.username}</td>
-          <td style="font-family:monospace;color:#fbbf24">${u.password}</td>
+          <td style="font-family:monospace;color:#fbbf24">••••••</td>
           <td><span class="role-badge role-${u.role}">${u.role}</span></td>
           <td style="color:#94a3b8">${userDetail(u)}</td>
           <td style="color:#64748b;font-size:12px">${u.email||'—'}</td>
