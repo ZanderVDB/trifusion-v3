@@ -883,7 +883,8 @@ function updateInstallerNote() {
   if (!noteEl) return;
   if (!country) { noteEl.innerHTML = ''; return; }
   const names = _countryInstallers[country];
-  if (names?.length) noteEl.innerHTML = `<b style="color:#38bdf8">Installer will be assigned</b> for ${country}`;
+  if (names?.length === 1) noteEl.innerHTML = `<b style="color:#4ade80">✓ ${names[0]} will be automatically assigned</b> for ${country}`;
+  else if (names?.length > 1) noteEl.innerHTML = `<b style="color:#38bdf8">An installer will be assigned by admin</b> for ${country} (multiple available)`;
   else noteEl.innerHTML = `<b style="color:#fbbf24">No installer registered for this country yet.</b> Your request will still be submitted and assigned manually.`;
 }
 

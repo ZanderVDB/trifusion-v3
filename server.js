@@ -489,9 +489,12 @@ app.get('/api/:companyId/form-data', requireCompanyAuth(), (req, res) => {
 // ── COMPANY ADMIN — USER MANAGEMENT ──────────────────────────────────────────
 app.get('/api/:companyId/users', requireCompanyAuth('admin'), (req, res) => {
   const users = getCompanyUsers(req.params.companyId);
-  // Strip passwords from response (except for admin viewing own company)
+  // Never send password hashes to the frontend
   const safe = {};
-  Object.entries(users).forEach(([k,v]) => { safe[k] = {...v}; });
+  Object.entries(users).forEach(([k,v]) => {
+    const { password, ...rest } = v;
+    safe[k] = rest;
+  });
   res.json(safe);
 });
 
