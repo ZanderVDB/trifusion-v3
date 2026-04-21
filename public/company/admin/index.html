@@ -757,6 +757,8 @@ function renderModalContent(id){
     ['Job Number', j.id],
     ['Location', j.location],
     ['Vehicle', j.truck||'—'],
+    ['Contact Person', j.contactName||'—'],
+    ['Contact Number', j.contactPhone||'—'],
     ['Service Type', j.serviceType||'Installation'],
     ['Unit Type', j.serviceType==='Inspection'?'N/A':j.unitType||'Basic'],
     ['Country', j.country||'—'],
@@ -785,6 +787,14 @@ function renderModalContent(id){
         <div class="form-field">
           <label class="form-label">Vehicle No.</label>
           <input class="form-input" value="${j.truck||''}" onchange="adminEdit('${j.id}','truck',this.value)" style="font-size:12px;padding:7px 10px"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Contact Person</label>
+          <input class="form-input" value="${j.contactName||''}" onchange="adminEdit('${j.id}','contactName',this.value)" placeholder="Name of person on site" style="font-size:12px;padding:7px 10px"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Contact Number</label>
+          <input class="form-input" value="${j.contactPhone||''}" onchange="adminEdit('${j.id}','contactPhone',this.value)" placeholder="Phone number" style="font-size:12px;padding:7px 10px"/>
         </div>
         <div class="form-field">
           <label class="form-label">Service Type</label>
@@ -1079,7 +1089,9 @@ async function submitAdminJob() {
     method: 'POST',
     body: JSON.stringify({
       location,
-      truck:    document.getElementById('an-truck').value.trim(),
+      truck:        document.getElementById('an-truck').value.trim(),
+      contactName:  document.getElementById('an-contact-name').value.trim(),
+      contactPhone: document.getElementById('an-contact-phone').value.trim(),
       country:  getSelectedCountry(),
       date,
       time:     (()=>{ const h=document.getElementById('an-time-h')?.value; const m=document.getElementById('an-time-m')?.value; return (h&&m)?h+':'+m:''; })(),
@@ -1788,6 +1800,14 @@ checkAuth();
       <div class="form-field">
         <label class="form-label">Vehicle / Truck No.</label>
         <input class="form-input" id="an-truck" placeholder="Can be added later"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Contact Person</label>
+        <input class="form-input" id="an-contact-name" placeholder="Name of person on site"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Contact Number</label>
+        <input class="form-input" id="an-contact-phone" placeholder="Phone number"/>
       </div>
       <div class="form-field">
         <label class="form-label">Country</label>

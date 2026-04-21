@@ -651,7 +651,7 @@ app.get('/api/:companyId/jobs/:id', requireCompanyAuth(), (req, res) => {
 
 app.post('/api/:companyId/jobs', requireCompanyAuth(), async (req, res) => {
   const cid = req.params.companyId;
-  const { location, truck, country, date, time, unitType, serviceType, clientId, technician } = req.body;
+  const { location, truck, country, date, time, unitType, serviceType, clientId, technician, contactName, contactPhone } = req.body;
   if (!location||!date||!country) return res.status(400).json({ error:'Location, country and date are required' });
   if (!serviceType) return res.status(400).json({ error:'Please select a service type' });
 
@@ -694,6 +694,8 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), async (req, res) => {
     name: location,
     clientId: effectiveClientId||clientId||'',
     clientName, clientCompanyName,
+    contactName: contactName||'',
+    contactPhone: contactPhone||'',
     startDate: new Date().toISOString().slice(0,10),
     completionDate: null, notes: [], status:'Pending Acceptance'
   };

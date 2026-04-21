@@ -692,6 +692,15 @@ function renderDetail(id){
           ${[['Client',j.clientCompanyName||j.clientName||'Client'],['Location',j.location],['Service',j.serviceType||'Installation'],['Date',j.date+(j.time?' '+j.time:' (TBC)')],['Unit',j.serviceType==='Inspection'?'—':j.unitType],['Truck',j.truck||'TBC'],['Country',j.country]]
             .map(([k,v])=>`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">${k}</div><div style="font-size:13px;color:#e2e8f0;font-weight:500">${v}</div></div>`).join('')}
         </div>
+        ${(j.contactName||j.contactPhone) ? `
+        <div style="margin-top:14px;padding:12px 14px;background:#0c2a1a;border:1px solid #166534;border-radius:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="font-size:18px">📞</div>
+          <div>
+            <div style="font-size:10px;color:#4ade80;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:2px">On-site Contact</div>
+            <div style="font-size:14px;color:#f1f5f9;font-weight:700">${j.contactName||'—'}</div>
+            ${j.contactPhone?`<a href="tel:${j.contactPhone}" style="font-size:13px;color:#4ade80;text-decoration:none;font-weight:500">${j.contactPhone}</a>`:''}
+          </div>
+        </div>` : ''}
       </div>
       <div class="progress-wrap" style="margin-top:14px">
         <div class="progress-track"><div class="progress-fill" style="width:${pct}%;background:${pct===100?'#34d399':'#38bdf8'}"></div></div>

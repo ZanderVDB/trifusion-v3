@@ -185,6 +185,14 @@
         <input class="form-input" id="f-truck" placeholder="Can be added later"/>
       </div>
       <div class="form-field">
+        <label class="form-label">Contact Person <span style="color:#f87171">*</span></label>
+        <input class="form-input" id="f-contact-name" placeholder="Name of person to contact on site"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Contact Number <span style="color:#f87171">*</span></label>
+        <input class="form-input" id="f-contact-phone" placeholder="Phone number"/>
+      </div>
+      <div class="form-field">
         <label class="form-label">Country <span style="color:#f87171">*</span></label>
         <select class="form-input" id="f-country" onchange="updateInstallerNote()">
           <option value="">Loading…</option>
@@ -609,7 +617,8 @@ function renderDetail(id) {
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px">
           ${[['Location',j.location],['Country',j.country],['Date',j.date+(j.time?' '+j.time:'')],
-             ['Service',j.serviceType||'Installation'],['Unit',j.serviceType==='Inspection'?'—':j.unitType],['Installer',j.technician]]
+             ['Service',j.serviceType||'Installation'],['Unit',j.serviceType==='Inspection'?'—':j.unitType],['Installer',j.technician],
+             ['Contact Person',j.contactName||'—'],['Contact Number',j.contactPhone||'—']]
             .map(([k,v])=>`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">${k}</div>
               <div style="font-size:13px;color:#e2e8f0;font-weight:500">${v}</div></div>`).join('')}
           <div>
@@ -885,9 +894,13 @@ async function submitRequest() {
   const timeH    = document.getElementById('f-time-h')?.value;
   const timeM    = document.getElementById('f-time-m')?.value;
   const time     = (timeH && timeM) ? timeH+':'+timeM : '';
-  if (!location) { alert('Please enter a location.'); return; }
-  if (!date)     { alert('Please select a service date.'); return; }
-  if (!time)     { alert('Please select a service time.'); return; }
+  const contactName  = document.getElementById('f-contact-name').value.trim();
+  const contactPhone = document.getElementById('f-contact-phone').value.trim();
+  if (!location)     { alert('Please enter a location.'); return; }
+  if (!contactName)  { alert('Please enter a contact person name.'); return; }
+  if (!contactPhone) { alert('Please enter a contact number.'); return; }
+  if (!date)         { alert('Please select a service date.'); return; }
+  if (!time)         { alert('Please select a service time.'); return; }
   const _cselV = document.getElementById('f-country');
   const _countryCheck = _cselV?.value === '__other__' ? (document.getElementById('f-country-other')?.value.trim()||'') : (_cselV?.value||'');
   if (!_countryCheck) { alert('Please select or enter a country.'); return; }
@@ -898,6 +911,7 @@ async function submitRequest() {
   const res = await apiFetch(capi('/jobs'), {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       location, truck: document.getElementById('f-truck').value.trim(),
+      contactName, contactPhone,
       country: finalCountry, date, time,
       serviceType: document.getElementById('f-service')?.value || 'Installation',
       unitType: document.getElementById('f-service')?.value === 'Inspection' ? 'N/A' : document.getElementById('f-unit').value,
