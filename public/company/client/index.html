@@ -186,11 +186,11 @@
       </div>
       <div class="form-field">
         <label class="form-label">Contact Person <span style="color:#f87171">*</span></label>
-        <input class="form-input" id="f-contact-name" placeholder="Name of person to contact on site"/>
+        <input class="form-input" id="f-contact-name" placeholder="On-site contact name"/>
       </div>
       <div class="form-field">
         <label class="form-label">Contact Number <span style="color:#f87171">*</span></label>
-        <input class="form-input" id="f-contact-phone" placeholder="Phone number"/>
+        <input class="form-input" id="f-contact-phone" placeholder="e.g. +27 82 000 0000" type="tel"/>
       </div>
       <div class="form-field">
         <label class="form-label">Country <span style="color:#f87171">*</span></label>
@@ -618,7 +618,7 @@ function renderDetail(id) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px">
           ${[['Location',j.location],['Country',j.country],['Date',j.date+(j.time?' '+j.time:'')],
              ['Service',j.serviceType||'Installation'],['Unit',j.serviceType==='Inspection'?'—':j.unitType],['Installer',j.technician],
-             ['Contact Person',j.contactName||'—'],['Contact Number',j.contactPhone||'—']]
+             ...(j.contactName||j.contactPhone ? [['Contact Person',j.contactName||'—'],['Contact Number',j.contactPhone||'—']] : [])]
             .map(([k,v])=>`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">${k}</div>
               <div style="font-size:13px;color:#e2e8f0;font-weight:500">${v}</div></div>`).join('')}
           <div>
@@ -883,9 +883,9 @@ function updateInstallerNote() {
   if (!noteEl) return;
   if (!country) { noteEl.innerHTML = ''; return; }
   const names = _countryInstallers[country];
-  if (names?.length === 1) noteEl.innerHTML = `<b style="color:#4ade80">✓ ${names[0]} will be automatically assigned</b> for ${country}`;
-  else if (names?.length > 1) noteEl.innerHTML = `<b style="color:#38bdf8">An installer will be assigned by admin</b> for ${country} (multiple available)`;
-  else noteEl.innerHTML = `<b style="color:#fbbf24">No installer registered for this country yet.</b> Your request will still be submitted and assigned manually.`;
+  if (names?.length === 1) noteEl.innerHTML = `<span style="color:#34d399;font-weight:600">✓ Installer: ${names[0]}</span>`;
+  else if (names?.length > 1) noteEl.innerHTML = `<span style="color:#38bdf8">ℹ Your job will be assigned an installer for ${country}</span>`;
+  else noteEl.innerHTML = `<span style="color:#fbbf24;font-weight:600">No installer registered for this country yet.</span> Your request will still be submitted and assigned manually.`;
 }
 
 async function submitRequest() {

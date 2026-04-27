@@ -342,19 +342,6 @@ async function loadAll(){
     jobs = Array.isArray(data) ? data : [];
   } catch(e) { console.error('loadJobs error',e); return; }
   document.getElementById('tc-jobs').textContent=jobs.length;
-  // Rebuild installer filter dynamically from form-data
-  try {
-    const _fdRes = await apiFetch(capi('/form-data'));
-    const _fdData = await _fdRes.json();
-    const _fiEl = document.getElementById('filter-installer');
-    if (_fiEl) {
-      const _curFi = _fiEl.value;
-      const _installers = (_fdData.installers || []).map(u => u.installer || u.name).filter(Boolean);
-      _fiEl.innerHTML = '<option value="">All Installers</option>' +
-        _installers.map(n => `<option value="${n}">${n}</option>`).join('');
-      if (_curFi) _fiEl.value = _curFi;
-    }
-  } catch(e) {}
   // Rebuild client filter dynamically
   const _fcEl = document.getElementById('filter-client');
   if (_fcEl) {
@@ -367,6 +354,15 @@ async function loadAll(){
         return `<option value="${id}">${name}</option>`;
       }).join('');
     if (_curVal) _fcEl.value = _curVal;
+  }
+  // Rebuild installer filter dynamically
+  const _fiEl = document.getElementById('filter-installer');
+  if (_fiEl) {
+    const _curInstVal = _fiEl.value;
+    const _installers = [...new Set(jobs.map(j=>j.technician).filter(Boolean))].sort();
+    _fiEl.innerHTML = '<option value="">All Installers</option>' +
+      _installers.map(name => `<option value="${name}">${name}</option>`).join('');
+    if (_curInstVal) _fiEl.value = _curInstVal;
   }
   // Always refresh overview stats so attention list stays current
   renderOverview();
@@ -757,8 +753,6 @@ function renderModalContent(id){
     ['Job Number', j.id],
     ['Location', j.location],
     ['Vehicle', j.truck||'—'],
-    ['Contact Person', j.contactName||'—'],
-    ['Contact Number', j.contactPhone||'—'],
     ['Service Type', j.serviceType||'Installation'],
     ['Unit Type', j.serviceType==='Inspection'?'N/A':j.unitType||'Basic'],
     ['Country', j.country||'—'],
@@ -766,6 +760,7 @@ function renderModalContent(id){
     ['Time', j.time||'—'],
     ['Technician', j.technician||'Unassigned'],
     ['Client', j.clientCompanyName||j.clientName||'—'],
+    ...(j.contactName||j.contactPhone ? [['Contact Person', j.contactName||'—'], ['Contact Number', j.contactPhone||'—']] : []),
   ];
   const _infoHTML = `<div class="card" style="margin-bottom:14px">
     <div class="card-title">📋 Job Details</div>
@@ -790,11 +785,11 @@ function renderModalContent(id){
         </div>
         <div class="form-field">
           <label class="form-label">Contact Person</label>
-          <input class="form-input" value="${j.contactName||''}" onchange="adminEdit('${j.id}','contactName',this.value)" placeholder="Name of person on site" style="font-size:12px;padding:7px 10px"/>
+          <input class="form-input" value="${j.contactName||''}" onchange="adminEdit('${j.id}','contactName',this.value)" placeholder="On-site contact name" style="font-size:12px;padding:7px 10px"/>
         </div>
         <div class="form-field">
           <label class="form-label">Contact Number</label>
-          <input class="form-input" value="${j.contactPhone||''}" onchange="adminEdit('${j.id}','contactPhone',this.value)" placeholder="Phone number" style="font-size:12px;padding:7px 10px"/>
+          <input class="form-input" value="${j.contactPhone||''}" onchange="adminEdit('${j.id}','contactPhone',this.value)" placeholder="e.g. +27 82 000 0000" type="tel" style="font-size:12px;padding:7px 10px"/>
         </div>
         <div class="form-field">
           <label class="form-label">Service Type</label>
@@ -958,12 +953,16 @@ async function refreshCountryInstallerMap() {
   try {
     const res = await apiFetch(capi('/form-data'));
     const data = await res.json();
+    const installers = data.installers || [];
     const map = {};
-    (data.installers || []).forEach(u => {
-      (u.countries || []).forEach(c => { if (!map[c]) map[c] = u.installer || u.name; });
+    installers.forEach(u => {
+      (u.countries||[]).forEach(c => {
+        if (!map[c]) map[c] = [];
+        map[c].push(u.installer || u.name);
+      });
     });
     COUNTRY_INSTALLER_ADMIN = map;
-  } catch(e) {}
+  } catch(e) { console.error('refreshCountryInstallerMap error', e); }
 }
 
 
@@ -1070,9 +1069,14 @@ function updateJobInstallerHint() {
   const noteEl  = document.getElementById('an-installer-note');
   if (!noteEl) return;
   if (!country) { noteEl.innerHTML = ''; return; }
-  const assigned = COUNTRY_INSTALLER_ADMIN[country];
-  if (assigned) noteEl.innerHTML = `<span style="color:#4ade80">✓ ${assigned} will be automatically assigned</span>`;
-  else noteEl.innerHTML = `<span style="color:#fbbf24">No installer registered for this country — you'll assign manually.</span>`;
+  const names = COUNTRY_INSTALLER_ADMIN[country];
+  if (names && names.length === 1) {
+    noteEl.innerHTML = `<span style="color:#34d399;font-weight:600">✓ Installer: ${names[0]}</span>`;
+  } else if (names && names.length > 1) {
+    noteEl.innerHTML = `<span style="color:#38bdf8">ℹ Admin will assign installer for: ${country}</span>`;
+  } else {
+    noteEl.innerHTML = `<span style="color:#64748b">Installer will be assigned for: ${country}</span>`;
+  }
 }
 function updateAdminInstaller() { updateJobInstallerHint(); }
 async function submitAdminJob() {
@@ -1096,12 +1100,12 @@ async function submitAdminJob() {
       truck:        document.getElementById('an-truck').value.trim(),
       contactName:  document.getElementById('an-contact-name').value.trim(),
       contactPhone: document.getElementById('an-contact-phone').value.trim(),
-      country:  getSelectedCountry(),
+      country:      getSelectedCountry(),
       date,
-      time:     (()=>{ const h=document.getElementById('an-time-h')?.value; const m=document.getElementById('an-time-m')?.value; return (h&&m)?h+':'+m:''; })(),
-      unitType: document.getElementById('an-unit').value,
-      serviceType: document.getElementById('an-service').value,
-      clientId: document.getElementById('an-client').value,
+      time:         (()=>{ const h=document.getElementById('an-time-h')?.value; const m=document.getElementById('an-time-m')?.value; return (h&&m)?h+':'+m:''; })(),
+      unitType:     document.getElementById('an-unit').value,
+      serviceType:  document.getElementById('an-service').value,
+      clientId:     document.getElementById('an-client').value,
     })
   });
   const data = await res.json();
@@ -1145,19 +1149,13 @@ async function loadUsers() {
             ['Full Name',    u.name],
             ['Username',     u.username],
             ['Email',        u.email||'—'],
+            ['Password',     '••••••'],
             ...(isClient ? [] : [['Countries', (u.countries||[]).join(', ')||'—']]),
           ].map(([label,val])=>`
             <div>
               <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">${label}</div>
               <div style="font-size:13px;color:#e2e8f0;background:#1e293b;border-radius:6px;padding:7px 10px">${val}</div>
             </div>`).join('')}
-          <div>
-            <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px">Password</div>
-            <div style="display:flex;align-items:center;gap:8px;background:#1e293b;border-radius:6px;padding:7px 10px">
-              <span style="font-size:13px;color:#e2e8f0;letter-spacing:2px">••••••••</span>
-              <button onclick="switchToEdit('${u.username}')" style="background:none;border:none;cursor:pointer;color:#38bdf8;font-size:11px;padding:0;margin-left:auto">Change →</button>
-            </div>
-          </div>
         </div>
         <button class="btn-primary" style="font-size:12px;padding:7px 14px;margin-top:12px" onclick="switchToEdit('${u.username}')">✏️ Edit Details</button>
       </div>
@@ -1813,11 +1811,11 @@ checkAuth();
       </div>
       <div class="form-field">
         <label class="form-label">Contact Person</label>
-        <input class="form-input" id="an-contact-name" placeholder="Name of person on site"/>
+        <input class="form-input" id="an-contact-name" placeholder="On-site contact name"/>
       </div>
       <div class="form-field">
         <label class="form-label">Contact Number</label>
-        <input class="form-input" id="an-contact-phone" placeholder="Phone number"/>
+        <input class="form-input" id="an-contact-phone" placeholder="e.g. +27 82 000 0000" type="tel"/>
       </div>
       <div class="form-field">
         <label class="form-label">Country</label>

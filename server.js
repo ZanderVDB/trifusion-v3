@@ -79,7 +79,7 @@ function hashPassword(plain) { return bcrypt.hashSync(plain, 10); }
 function checkPassword(plain, stored) {
   if (!plain || !stored) return false;
   if (stored.startsWith('$2b$') || stored.startsWith('$2a$')) return bcrypt.compareSync(plain, stored);
-  return plain === stored; // plain-text fallback for legacy passwords
+  return plain === stored; // plain-text fallback for existing passwords
 }
 
 // ── Activity log ──────────────────────────────────────────────────────────────
@@ -449,8 +449,80 @@ app.get('/api/hq/companies/:companyId/users', requireAuth('hq'), (req, res) => {
   res.json(getCompanyUsers(req.params.companyId));
 });
 
+app.post('/api/hq/companies/:companyId/users', requireAuth('hq'), (req, res) => {
+  const cid = req.params.companyId;
+  const { username, password, role, name, companyName, countries, email } = req.body;
+  if (!username||!password||!role||!name) return res.json({ ok:false, error:'All fields required' });
+  const users = getCompanyUsers(cid);
+  if (users[username]) return res.json({ ok:false, error:'Username already exists' });
+  const newUser = { username, password:hashPassword(password), role, name, companyId:cid, email:email||'', createdAt:new Date().toISOString().slice(0,10) };
+  if (role==='client') { newUser.clientId=username; newUser.companyName=companyName||''; }
+  if (role==='installer') { newUser.installer=name; newUser.countries=countries||[]; newUser.companyName=companyName||''; }
+  users[username] = newUser;
+  saveCompanyUsers(cid, users);
+  res.json({ ok:true });
+});
+
+app.put('/api/hq/companies/:companyId/users/:username', requireAuth('hq'), (req, res) => {
+  const cid = req.params.companyId;
+  const oldUsername = req.params.username;
+  const users = getCompanyUsers(cid);
+  if (!users[oldUsername]) return res.json({ ok:false, error:'User not found' });
+  const { name, email, companyName, countries, newUsername, password } = req.body;
+  if (name !== undefined) users[oldUsername].name = name;
+  if (email !== undefined) users[oldUsername].email = email;
+  if (companyName !== undefined) users[oldUsername].companyName = companyName;
+  if (countries !== undefined) users[oldUsername].countries = countries;
+  if (password) users[oldUsername].password = hashPassword(password);
+  if (newUsername && newUsername !== oldUsername) {
+    if (users[newUsername]) return res.json({ ok:false, error:'Username already taken' });
+    users[oldUsername].username = newUsername;
+    users[newUsername] = users[oldUsername];
+    delete users[oldUsername];
+  }
+  saveCompanyUsers(cid, users);
+  res.json({ ok:true });
+});
+
+app.delete('/api/hq/companies/:companyId/users/:username', requireAuth('hq'), (req, res) => {
+  const users = getCompanyUsers(req.params.companyId);
+  delete users[req.params.username];
+  saveCompanyUsers(req.params.companyId, users);
+  res.json({ ok:true });
+});
+
 app.get('/api/hq/companies/:companyId/settings', requireAuth('hq'), (req, res) => {
   res.json(getCompanySettings(req.params.companyId));
+});
+
+app.put('/api/hq/companies/:companyId/settings', requireAuth('hq'), (req, res) => {
+  const cid = req.params.companyId;
+  const settings = getCompanySettings(cid);
+  const { companyName, adminName, status, loginBranding } = req.body;
+  if (companyName !== undefined) settings.companyName = companyName;
+  if (adminName   !== undefined) settings.adminName   = adminName;
+  if (status      !== undefined) settings.status      = status;
+  if (loginBranding !== undefined) settings.loginBranding = loginBranding;
+  saveCompanySettings(cid, settings);
+  // Sync to company registry
+  const companies = getCompanies();
+  const co = companies.find(c=>c.companyId===cid);
+  if (co) {
+    if (companyName !== undefined) co.companyName = companyName;
+    if (adminName   !== undefined) co.adminName   = adminName;
+    if (status      !== undefined) co.status      = status;
+    saveCompanies(companies);
+  }
+  res.json({ ok:true });
+});
+
+// Public branding endpoint — no auth, used by branded login page
+app.get('/api/public/branding/:companyId', (req, res) => {
+  try {
+    const settings = getCompanySettings(req.params.companyId);
+    if (!settings || !settings.companyName) return res.json({ ok:false });
+    res.json({ ok:true, companyName:settings.companyName, loginBranding:settings.loginBranding !== false });
+  } catch(e) { res.json({ ok:false }); }
 });
 
 
@@ -491,10 +563,7 @@ app.get('/api/:companyId/users', requireCompanyAuth('admin'), (req, res) => {
   const users = getCompanyUsers(req.params.companyId);
   // Never send password hashes to the frontend
   const safe = {};
-  Object.entries(users).forEach(([k,v]) => {
-    const { password, ...rest } = v;
-    safe[k] = rest;
-  });
+  Object.entries(users).forEach(([k,v]) => { const { password, ...rest } = v; safe[k] = rest; });
   res.json(safe);
 });
 
@@ -696,9 +765,9 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), async (req, res) => {
     unitType: serviceType==='Inspection'?'N/A':(unitType||'Basic'),
     name: location,
     clientId: effectiveClientId||clientId||'',
-    clientName, clientCompanyName,
     contactName: contactName||'',
     contactPhone: contactPhone||'',
+    clientName, clientCompanyName,
     startDate: new Date().toISOString().slice(0,10),
     completionDate: null, notes: [], status:'Pending Acceptance'
   };
@@ -1593,6 +1662,7 @@ app.get('/hq',       (req,res) => res.sendFile(path.join(PUBLIC_DIR,'hq','index.
 app.get('/:cid/admin',     (req,res) => res.sendFile(path.join(PUBLIC_DIR,'company','admin','index.html')));
 app.get('/:cid/client',    (req,res) => res.sendFile(path.join(PUBLIC_DIR,'company','client','index.html')));
 app.get('/:cid/installer', (req,res) => res.sendFile(path.join(PUBLIC_DIR,'company','installer','index.html')));
+app.get('/:cid/login',     (req,res) => res.sendFile(path.join(PUBLIC_DIR,'login.html')));
 
 // ── START ─────────────────────────────────────────────────────────────────────
 // ── Database seed (runs on startup if DB is empty) ────────────────────────────
@@ -1666,60 +1736,6 @@ function seedDatabase() {
       if (patched) { writeJSON(uFile2, u2); console.log('[SEED] Patched installer companyNames'); }
     }
   } catch(e) {}
-  // ── Seed test company (created if it doesn't already exist) ──────────────────
-  const testCid = 'testing';
-  const testDir = path.join(DB_DIR, 'companies', testCid);
-  const testUsersFile = path.join(testDir, 'users.json');
-  if (!fs.existsSync(testUsersFile)) {
-    fs.mkdirSync(testDir, { recursive: true });
-    fs.mkdirSync(path.join(UPL_DIR, testCid), { recursive: true });
-
-    const testUsers = {
-      testadmin: { username:'testadmin', password:hashPassword('Test@admin1'), role:'admin', name:'Test Admin', companyId:testCid, email:'', createdAt:'2025-01-01' },
-      testclient: { username:'testclient', password:hashPassword('Test@client1'), role:'client', name:'Alice Test', clientId:'testclient', companyName:'Test Client Co', companyId:testCid, email:'', createdAt:'2025-01-01' },
-      testclient2: { username:'testclient2', password:hashPassword('Test@client2'), role:'client', name:'Bob Test', clientId:'testclient2', companyName:'Test Client 2', companyId:testCid, email:'', createdAt:'2025-01-01' },
-      testinstaller: { username:'testinstaller', password:hashPassword('Test@install1'), role:'installer', name:'Test Installer', installer:'Test Installer', companyName:'Test Install Co', countries:['South Africa','Zambia'], companyId:testCid, email:'', createdAt:'2025-01-01' },
-    };
-    writeJSON(testUsersFile, testUsers);
-
-    const mkChecklist = (acceptDone, preDone, serviceDone) => ([
-      { id:'accepted', title:'Service Acceptance', subtitle:'Installer confirms the job', who:'installer', steps:[
-        { id:'job_accepted', label:'Accept this service', done:acceptDone }
-      ]},
-      { id:'pre', title:'Pre-Service Confirmation', subtitle:'Complete approx. 1 hour before service', who:'installer', steps:[
-        { id:'pre_confirm', label:'Confirm service is still happening', done:preDone }
-      ]},
-      { id:'service', title:'Service Check', subtitle:'Complete during the service', who:'installer', steps:[
-        { id:'tech_onsite',      label:'Technician confirmed on-site', done:serviceDone },
-        { id:'truck_onsite',     label:'Vehicle / truck confirmed on-site', done:serviceDone },
-        { id:'service_complete', label:'Service complete', done:serviceDone }
-      ]},
-      { id:'documents', title:'Post-Service Documents', subtitle:'Upload after service is complete', who:'both', steps:[
-        { id:'doc_job_card',  label:'Job card', done:false, requiresUpload:true, uploadedFiles:[] },
-        { id:'doc_checklist', label:'Inspection checklist', done:false, requiresUpload:true, uploadedFiles:[] },
-        { id:'doc_images',    label:'Images of job', done:false, requiresUpload:true, multipleFiles:true, uploadedFiles:[] },
-        { id:'doc_notes',     label:'Additional notes', done:false, isTextNote:true }
-      ]}
-    ]);
-
-    const testJobs = [
-      { id:'JOB-001', technician:'Test Installer', clientId:'testclient', clientName:'Alice Test', clientCompanyName:'Test Client Co', location:'123 Test Street, Johannesburg', date:'2026-05-01', time:'09:00', serviceType:'Installation', checklist:mkChecklist(false,false,false), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'01/05/2026, 08:00:00' }], createdAt:'2026-05-01' },
-      { id:'JOB-002', technician:'Test Installer', clientId:'testclient', clientName:'Alice Test', clientCompanyName:'Test Client Co', location:'456 Sample Ave, Cape Town', date:'2026-05-02', time:'10:00', serviceType:'Installation', checklist:mkChecklist(true,true,false), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'01/05/2026, 09:00:00' }, { who:'Test Installer', role:'installer', event:'✅ Accepted job', detail:'', at:'01/05/2026, 10:00:00' }], createdAt:'2026-05-01' },
-      { id:'JOB-003', technician:'Test Installer', clientId:'testclient2', clientName:'Bob Test', clientCompanyName:'Test Client 2', location:'789 Demo Road, Durban', date:'2026-05-03', time:'08:00', serviceType:'Maintenance', checklist:mkChecklist(true,true,true), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'02/05/2026, 08:00:00' }, { who:'Test Installer', role:'installer', event:'✅ Service complete', detail:'', at:'02/05/2026, 14:00:00' }], createdAt:'2026-05-02' },
-      { id:'JOB-004', technician:'Test Installer', clientId:'testclient2', clientName:'Bob Test', clientCompanyName:'Test Client 2', location:'10 Alpha Blvd, Pretoria', date:'2026-05-04', time:'11:00', serviceType:'Installation', systemOk:true, checklist:mkChecklist(true,true,true), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'03/05/2026, 08:00:00' }, { who:'testclient2', role:'client', event:'✅ System confirmed working', detail:'', at:'03/05/2026, 15:00:00' }], createdAt:'2026-05-03' },
-      { id:'JOB-005', technician:'Test Installer', clientId:'testclient', clientName:'Alice Test', clientCompanyName:'Test Client Co', location:'22 Beta Close, Sandton', date:'2026-04-15', time:'09:00', serviceType:'Installation', systemOk:true, clientConfirmed:true, docCheckPending:false, checklist:mkChecklist(true,true,true), activityLog:[{ who:'testadmin', role:'admin', event:'Job created', detail:'', at:'14/04/2026, 08:00:00' }, { who:'testclient', role:'client', event:'✅ Job confirmed complete', detail:'', at:'15/04/2026, 16:00:00' }], createdAt:'2026-04-14' },
-    ];
-    writeJSON(path.join(testDir, 'jobs.json'), testJobs);
-    writeJSON(path.join(testDir, 'settings.json'), { companyId:testCid, companyName:'Testing Company', adminName:'Test Admin', status:'active', createdAt:'2025-01-01', branding:{ logoUrl:null }, emails:{ adminEmail:'', clientEmail:'', installerEmail:'', resendApiKey:'' } });
-
-    const allCompanies = getCompanies();
-    if (!allCompanies.find(c=>c.companyId===testCid)) {
-      allCompanies.push({ companyId:testCid, companyName:'Testing Company', adminName:'Test Admin', status:'active', createdAt:'2025-01-01' });
-      saveCompanies(allCompanies);
-    }
-    console.log('[SEED] Created test company with 4 users and 5 test jobs');
-  }
-
   console.log('[SEED] Database check complete');
 }
 
