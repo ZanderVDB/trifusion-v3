@@ -144,6 +144,32 @@ function computeStatus(job) {
   return 'In Progress';
 }
 
+// ── Default pricing config ────────────────────────────────────────────────────
+function getDefaultPricing() {
+  return {
+    currency: 'USD',
+    travelRate: 8,
+    serviceRate: 10,
+    products: [
+      { id: 'tracker-basic',    name: 'Tracker Basic' },
+      { id: 'tracker-advanced', name: 'Tracker Advanced' }
+    ],
+    installationTypes: [
+      { id: 'new-install',        name: 'New Installation',    useServiceRate: false, price: null },
+      { id: 'removal-reinstall',  name: 'Removal + Reinstall', useServiceRate: true,  price: null },
+      { id: 'demolish',           name: 'Demolishing',         useServiceRate: true,  price: null }
+    ],
+    serviceTypes: [
+      { id: 'inspection',   name: 'Inspection',         useServiceRate: true,  price: null },
+      { id: 'fault',        name: 'Fault Finding',       useServiceRate: true,  price: null },
+      { id: 'warranty',     name: 'Warranty Check',      useServiceRate: false, price: 0    },
+      { id: 'repair',       name: 'Repair Verification', useServiceRate: true,  price: null },
+      { id: 'follow-up',    name: 'Follow-Up',           useServiceRate: false, price: 0    }
+    ],
+    fixedFeeLocations: []
+  };
+}
+
 // ── Token store ───────────────────────────────────────────────────────────────
 const TOKEN_FILE = path.join(DB_DIR, 'superadmin', 'tokens.json');
 let tokenStore = readJSON(TOKEN_FILE, {});
@@ -542,7 +568,7 @@ app.put('/api/hq/settings', requireAuth('hq'), (req, res) => {
 
 
 // ── PUBLIC FORM DATA (any authenticated company user) ─────────────────────────
-// Returns installer countries and client list for form dropdowns — no passwords
+// Returns installer countries, client list, and pricing config for form dropdowns
 app.get('/api/:companyId/form-data', requireCompanyAuth(), (req, res) => {
   const cid   = req.params.companyId;
   const users = getCompanyUsers(cid);
@@ -555,7 +581,10 @@ app.get('/api/:companyId/form-data', requireCompanyAuth(), (req, res) => {
     clientId: u.clientId||u.username, name: u.name, companyName: u.companyName||u.name
   }));
 
-  res.json({ installers, clients });
+  const settings = getCompanySettings(cid);
+  const pricing  = settings.pricing || getDefaultPricing();
+
+  res.json({ installers, clients, pricing });
 });
 
 // ── COMPANY ADMIN — USER MANAGEMENT ──────────────────────────────────────────
@@ -682,6 +711,39 @@ app.post('/api/:companyId/settings/logo', requireCompanyAuth('admin'), (req, res
   });
 });
 
+// ── PRICING CONFIG ────────────────────────────────────────────────────────────
+app.get('/api/:companyId/pricing', requireCompanyAuth('admin'), (req, res) => {
+  const settings = getCompanySettings(req.params.companyId);
+  res.json(settings.pricing || getDefaultPricing());
+});
+
+app.put('/api/:companyId/pricing', requireCompanyAuth('admin'), (req, res) => {
+  const cid = req.params.companyId;
+  const settings = getCompanySettings(cid);
+  settings.pricing = req.body;
+  saveCompanySettings(cid, settings);
+  res.json({ ok: true });
+});
+
+// ── VEHICLE HISTORY (last 30 days by registration) ────────────────────────────
+app.get('/api/:companyId/vehicle-history/:reg', requireCompanyAuth(), (req, res) => {
+  const cid   = req.params.companyId;
+  const reg   = (req.params.reg || '').toLowerCase().trim();
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const jobs  = getCompanyJobs(cid).filter(j => {
+    const trk = (j.truck || '').toLowerCase().trim();
+    return trk && trk === reg && j.date >= since;
+  }).map(j => ({
+    id: j.id, date: j.date, location: j.location,
+    jobCategory: j.jobCategory || 'Installation',
+    serviceType: j.serviceType || '',
+    installationType: j.installationType || '',
+    product: j.product || '',
+    status: computeStatus(j)
+  }));
+  res.json(jobs);
+});
+
 // ── JOBS ──────────────────────────────────────────────────────────────────────
 app.get('/api/:companyId/jobs', requireCompanyAuth(), (req, res) => {
   const cid  = req.params.companyId;
@@ -723,9 +785,14 @@ app.get('/api/:companyId/jobs/:id', requireCompanyAuth(), (req, res) => {
 
 app.post('/api/:companyId/jobs', requireCompanyAuth(), async (req, res) => {
   const cid = req.params.companyId;
-  const { location, truck, country, date, time, unitType, serviceType, clientId, technician, contactName, contactPhone } = req.body;
+  const {
+    location, truck, country, date, time,
+    unitType, serviceType, clientId, technician, contactName, contactPhone,
+    // Phase 1 new optional fields
+    jobCategory, product, installationType, relatedVehicle, relatedJobId, isWarrantyJob
+  } = req.body;
   if (!location||!date||!country) return res.status(400).json({ error:'Location, country and date are required' });
-  if (!serviceType) return res.status(400).json({ error:'Please select a service type' });
+  if (!serviceType && !jobCategory) return res.status(400).json({ error:'Please select a service type' });
 
   // Installer assignment — check how many installers in this country
   const users     = getCompanyUsers(cid);
@@ -755,21 +822,31 @@ app.post('/api/:companyId/jobs', requireCompanyAuth(), async (req, res) => {
 
   console.log(`[JOB CREATE] cid=${cid} country=${country} serviceType=${serviceType} clientId=${req.user.clientId||'?'} effectiveClientId=${effectiveClientId}`);
   const id  = nextJobId(cid);
+  // Derive legacy serviceType from new category/type fields for backward compat
+  const effectiveServiceType = serviceType || (jobCategory === 'Service' ? 'Inspection' : 'Installation');
+  const effectiveUnitType    = unitType || (jobCategory === 'Service' ? 'N/A' : (product || 'Basic'));
   const job = {
     id, location, truck:truck||'',
     technician: assignedTechnician,
     needsAssignment,
     country: country||'',
     date, time:time||'',
-    serviceType: serviceType||'Installation',
-    unitType: serviceType==='Inspection'?'N/A':(unitType||'Basic'),
+    serviceType: effectiveServiceType,
+    unitType: effectiveUnitType,
     name: location,
     clientId: effectiveClientId||clientId||'',
     contactName: contactName||'',
     contactPhone: contactPhone||'',
     clientName, clientCompanyName,
     startDate: new Date().toISOString().slice(0,10),
-    completionDate: null, notes: [], status:'Pending Acceptance'
+    completionDate: null, notes: [], status:'Pending Acceptance',
+    // Phase 1 fields (all optional — existing jobs won't have these)
+    jobCategory:      jobCategory      || null,
+    product:          product          || null,
+    installationType: installationType || null,
+    relatedVehicle:   relatedVehicle   || null,
+    relatedJobId:     relatedJobId     || null,
+    isWarrantyJob:    isWarrantyJob    || false
   };
   job.checklist = buildChecklist(job);
   job.activityLog = [{ who:'System', role:'system', event:'Job created', detail:`${job.clientCompanyName||job.clientName} — ${job.country}`, at:new Date().toLocaleString() }];

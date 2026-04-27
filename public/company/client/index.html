@@ -22,6 +22,8 @@
   .time-picker-wrap{display:flex;gap:6px;align-items:center}
   .time-sel{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:9px 8px;color:#e2e8f0;font-size:13px;font-family:inherit;cursor:pointer;text-align:center}
   .time-sel:focus{border-color:#38bdf8;outline:none}
+  .cat-btn{flex:1;padding:10px 8px;border-radius:10px;border:1.5px solid #334155;background:#0a1220;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+  .cat-btn.active{border-color:#38bdf8;background:#0c1f33;color:#38bdf8}
 
   /* ── MOBILE RESPONSIVE ─────────────────────────────────── */
   @media (max-width: 768px) {
@@ -246,21 +248,32 @@
 <option value="55">55</option></select>
         </div>
       </div>
+      <!-- Category -->
       <div class="form-field" style="grid-column:1/-1">
-        <label class="form-label">Service Type <span style="color:#f87171">*</span></label>
-        <select class="form-input" id="f-service" onchange="updateServiceForm()">
-          <option value="Installation">Installation</option>
-          <option value="Inspection">Inspection</option>
-          <option value="Remove and Install">Remove and Install</option>
-          <option value="Decommissioning">Decommissioning</option>
+        <label class="form-label">Job Category <span style="color:#f87171">*</span></label>
+        <div style="display:flex;gap:8px">
+          <button type="button" id="f-cat-install" class="cat-btn active" onclick="setClientCategory('Installation')">🔧 Installation</button>
+          <button type="button" id="f-cat-service"  class="cat-btn"       onclick="setClientCategory('Service')">🛠️ Service</button>
+        </div>
+      </div>
+      <!-- Product -->
+      <div class="form-field" style="grid-column:1/-1">
+        <label class="form-label">Product <span style="color:#f87171">*</span></label>
+        <select class="form-input" id="f-product">
+          <option value="">Loading products…</option>
         </select>
       </div>
-      <div class="form-field" style="grid-column:1/-1" id="f-unit-wrap">
-        <label class="form-label">Unit Type</label>
-        <select class="form-input" id="f-unit">
-          <option>Basic</option>
-          <option>Advanced</option>
+      <!-- Type -->
+      <div class="form-field" style="grid-column:1/-1">
+        <label class="form-label" id="f-type-label">Installation Type <span style="color:#f87171">*</span></label>
+        <select class="form-input" id="f-type">
+          <option value="">Select type…</option>
         </select>
+      </div>
+      <!-- Service-only: related vehicle -->
+      <div id="f-vehicle-wrap" style="grid-column:1/-1;display:none">
+        <label class="form-label">Related Vehicle Registration</label>
+        <input class="form-input" id="f-vehicle-reg" placeholder="e.g. CA 123-456"/>
       </div>
     </div>
     <div id="installer-note" style="margin-top:10px;padding:10px 12px;background:#0c1a2a;border-radius:8px;font-size:12px;color:#64748b"></div>
@@ -278,6 +291,8 @@ const COMPANY_ID = _pathParts[0] || '';
 function capi(path) { return '/api/' + COMPANY_ID + path; }
 
 let _countryInstallers = {}; // loaded dynamically from users
+let _clientJobCategory = 'Installation';
+let _clientFormPricing = null;
 
 function jobUrgencyStyle(job){
   if(job.status==='Completed') return '';
@@ -847,10 +862,18 @@ async function respondReschedule(jobId, accept) {
 
 // ── New form ──────────────────────────────────────────────────────────────────
 async function showNewForm() {
+  // Reset category state
+  _clientJobCategory = 'Installation';
+  document.getElementById('f-cat-install')?.classList.add('active');
+  document.getElementById('f-cat-service')?.classList.remove('active');
+  const vWrap = document.getElementById('f-vehicle-wrap');
+  if (vWrap) vWrap.style.display = 'none';
+
   document.getElementById('new-modal').classList.add('open');
   try {
     const res  = await apiFetch(capi('/form-data'));
     const data = await res.json();
+    _clientFormPricing = data.pricing || null;
     _countryInstallers = {};
     (data.installers||[]).forEach(u=>(u.countries||[]).forEach(co=>{
       _countryInstallers[co] = (_countryInstallers[co]||[]).concat(u.name);
@@ -862,16 +885,42 @@ async function showNewForm() {
       countries.forEach(co=>{ sel.innerHTML += `<option value="${co}">${co}</option>`; });
       sel.innerHTML += '<option value="__other__">Other (type below)</option>';
     }
+    // Populate products
+    const prodSel = document.getElementById('f-product');
+    if (prodSel && _clientFormPricing) {
+      const prods = _clientFormPricing.products || [];
+      prodSel.innerHTML = prods.length
+        ? prods.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')
+        : '<option value="">No products configured</option>';
+    }
+    populateClientTypeDropdown();
   } catch(e) { console.error('Could not load form data', e); }
   updateInstallerNote();
 }
+
 function closeNewForm() { document.getElementById('new-modal').classList.remove('open'); }
 
-function updateServiceForm() {
-  const svc = document.getElementById('f-service')?.value;
-  const unitWrap = document.getElementById('f-unit-wrap');
-  if (unitWrap) unitWrap.style.display = svc === 'Inspection' ? 'none' : '';
+function setClientCategory(cat) {
+  _clientJobCategory = cat;
+  document.getElementById('f-cat-install').classList.toggle('active', cat==='Installation');
+  document.getElementById('f-cat-service').classList.toggle('active',  cat==='Service');
+  document.getElementById('f-type-label').innerHTML = (cat==='Installation' ? 'Installation Type' : 'Service Type') + ' <span style="color:#f87171">*</span>';
+  const vWrap = document.getElementById('f-vehicle-wrap');
+  if (vWrap) vWrap.style.display = cat==='Service' ? '' : 'none';
+  populateClientTypeDropdown();
 }
+
+function populateClientTypeDropdown() {
+  const sel = document.getElementById('f-type');
+  if (!sel || !_clientFormPricing) return;
+  const types = _clientJobCategory==='Installation'
+    ? (_clientFormPricing.installationTypes||[])
+    : (_clientFormPricing.serviceTypes||[]);
+  sel.innerHTML = '<option value="">Select type…</option>';
+  types.forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
+}
+
+function updateServiceForm() { /* replaced by setClientCategory */ }
 function updateInstallerNote() {
   const sel = document.getElementById('f-country');
   const otherInput = document.getElementById('f-country-other');
@@ -891,32 +940,48 @@ function updateInstallerNote() {
 async function submitRequest() {
   const location = document.getElementById('f-location').value.trim();
   const date     = document.getElementById('f-date').value;
-  const country  = document.getElementById('f-country').value;
   const timeH    = document.getElementById('f-time-h')?.value;
   const timeM    = document.getElementById('f-time-m')?.value;
   const time     = (timeH && timeM) ? timeH+':'+timeM : '';
   const contactName  = document.getElementById('f-contact-name').value.trim();
   const contactPhone = document.getElementById('f-contact-phone').value.trim();
+  const csel         = document.getElementById('f-country');
+  const finalCountry = csel?.value === '__other__' ? (document.getElementById('f-country-other')?.value.trim()||'') : (csel?.value||'');
+  const productId    = document.getElementById('f-product')?.value || '';
+  const jobTypeId    = document.getElementById('f-type')?.value    || '';
+
   if (!location)     { alert('Please enter a location.'); return; }
   if (!contactName)  { alert('Please enter a contact person name.'); return; }
   if (!contactPhone) { alert('Please enter a contact number.'); return; }
   if (!date)         { alert('Please select a service date.'); return; }
   if (!time)         { alert('Please select a service time.'); return; }
-  const _cselV = document.getElementById('f-country');
-  const _countryCheck = _cselV?.value === '__other__' ? (document.getElementById('f-country-other')?.value.trim()||'') : (_cselV?.value||'');
-  if (!_countryCheck) { alert('Please select or enter a country.'); return; }
+  if (!finalCountry) { alert('Please select or enter a country.'); return; }
+  if (!jobTypeId)    { alert('Please select a ' + (_clientJobCategory==='Installation'?'installation':'service') + ' type.'); return; }
+
+  // Resolve display names for legacy fields
+  const allTypes = _clientJobCategory==='Installation'
+    ? (_clientFormPricing?.installationTypes||[])
+    : (_clientFormPricing?.serviceTypes||[]);
+  const selectedType = allTypes.find(t=>t.id===jobTypeId);
+  const productName  = (_clientFormPricing?.products||[]).find(p=>p.id===productId)?.name || productId;
+  const legacySvcType = selectedType?.name || (_clientJobCategory==='Installation' ? 'Installation' : 'Inspection');
+
   const btn = document.getElementById('submit-btn');
   btn.disabled = true; btn.textContent = 'Submitting…';
-  const _csel2 = document.getElementById('f-country');
-  const finalCountry = _csel2?.value === '__other__' ? (document.getElementById('f-country-other')?.value.trim()||'') : (_csel2?.value||'');
-  const res = await apiFetch(capi('/jobs'), {method:'POST', headers:{'Content-Type':'application/json'},
+  const res = await apiFetch(capi('/jobs'), { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       location, truck: document.getElementById('f-truck').value.trim(),
       contactName, contactPhone,
       country: finalCountry, date, time,
-      serviceType: document.getElementById('f-service')?.value || 'Installation',
-      unitType: document.getElementById('f-service')?.value === 'Inspection' ? 'N/A' : document.getElementById('f-unit').value,
-      clientId: getAuth()?.clientId || '',
+      serviceType:      legacySvcType,
+      unitType:         productName || 'Basic',
+      clientId:         getAuth()?.clientId || '',
+      // Phase 1 fields
+      jobCategory:      _clientJobCategory,
+      product:          productName,
+      installationType: _clientJobCategory==='Installation' ? selectedType?.name : null,
+      relatedVehicle:   _clientJobCategory==='Service' ? (document.getElementById('f-vehicle-reg')?.value.trim()||null) : null,
+      isWarrantyJob:    selectedType?.id === 'warranty',
     })
   });
   const data = await res.json();

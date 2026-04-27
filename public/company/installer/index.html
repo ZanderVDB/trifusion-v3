@@ -689,8 +689,22 @@ function renderDetail(id){
           ${j.accepted?`<div style="font-size:11px;color:#4ade80;margin-top:6px">✓ Accepted ${j.acceptedAt||''}</div>`:''}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px">
-          ${[['Client',j.clientCompanyName||j.clientName||'Client'],['Location',j.location],['Service',j.serviceType||'Installation'],['Date',j.date+(j.time?' '+j.time:' (TBC)')],['Unit',j.serviceType==='Inspection'?'—':j.unitType],['Truck',j.truck||'TBC'],['Country',j.country]]
-            .map(([k,v])=>`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">${k}</div><div style="font-size:13px;color:#e2e8f0;font-weight:500">${v}</div></div>`).join('')}
+          ${(()=>{
+            const d=[
+              ['Client',   j.clientCompanyName||j.clientName||'Client'],
+              ['Location', j.location],
+              ['Date',     j.date+(j.time?' '+j.time:' (TBC)')],
+              ['Country',  j.country],
+              ['Truck',    j.truck||'TBC'],
+            ];
+            if (j.product)          d.push(['Product',  j.product]);
+            if (j.jobCategory)      d.push(['Category', j.jobCategory]);
+            if (j.installationType) d.push(['Inst. Type',j.installationType]);
+            else if (j.jobCategory==='Service') d.push(['Svc. Type', j.serviceType||'—']);
+            else if (!j.jobCategory) d.push(['Service',  j.serviceType||'Installation']);
+            if (j.relatedVehicle)   d.push(['Vehicle',  j.relatedVehicle]);
+            return d.map(([k,v])=>`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">${k}</div><div style="font-size:13px;color:#e2e8f0;font-weight:500">${v}</div></div>`).join('');
+          })()}
         </div>
       </div>
       <div class="progress-wrap" style="margin-top:14px">

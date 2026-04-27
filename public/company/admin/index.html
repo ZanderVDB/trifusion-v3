@@ -60,6 +60,11 @@
   .btn-logout{background:transparent;border:1px solid #1e293b;border-radius:8px;padding:6px 12px;color:#64748b;cursor:pointer;font-size:12px}
   .btn-logout:hover{border-color:#f87171;color:#f87171}
   .btn-sm{font-size:12px;padding:6px 12px}
+  .settings-tab{background:transparent;border:none;border-bottom:2px solid transparent;color:#64748b;padding:9px 18px;cursor:pointer;font-size:13px;font-weight:600;transition:all .15s;margin-bottom:-1px}
+  .settings-tab.active{color:#38bdf8;border-bottom-color:#38bdf8}
+  .settings-tab:hover:not(.active){color:#94a3b8}
+  .cat-btn{flex:1;padding:10px 8px;border-radius:10px;border:1.5px solid #334155;background:#0a1220;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+  .cat-btn.active{border-color:#38bdf8;background:#0c1f33;color:#38bdf8}
   .hide-mobile{display:inline}.show-mobile{display:none}.show-mobile{display:inline}.overview-cols{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}}
 
   /* ── MOBILE RESPONSIVE ─────────────────────────────────── */
@@ -989,11 +994,65 @@ async function testEmail(){
 }
 
 
-function updateAdminServiceForm(){
-  const svc = document.getElementById('an-service')?.value;
-  const wrap = document.getElementById('an-unit-wrap');
-  if(wrap) wrap.style.display = svc==='Inspection'?'none':'';
+// Job category toggle
+let _jobCategory = 'Installation';
+let _formPricing = null; // pricing loaded when modal opens
+
+function setJobCategory(cat) {
+  _jobCategory = cat;
+  document.getElementById('an-cat-install').classList.toggle('active', cat==='Installation');
+  document.getElementById('an-cat-service').classList.toggle('active',  cat==='Service');
+  document.getElementById('an-type-label').innerHTML = (cat==='Installation' ? 'Installation Type' : 'Service Type') + ' <span style="color:#f87171">*</span>';
+  const vWrap = document.getElementById('an-vehicle-wrap');
+  if (vWrap) vWrap.style.display = cat==='Service' ? '' : 'none';
+  populateTypeDropdown();
 }
+
+function populateTypeDropdown() {
+  const sel = document.getElementById('an-type');
+  if (!sel || !_formPricing) return;
+  const types = _jobCategory==='Installation'
+    ? (_formPricing.installationTypes||[])
+    : (_formPricing.serviceTypes||[]);
+  sel.innerHTML = '<option value="">Select type…</option>';
+  types.forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
+}
+
+async function lookupVehicleHistory() {
+  const reg = (document.getElementById('an-vehicle-reg')?.value||'').trim();
+  if (!reg) { alert('Enter a vehicle registration first.'); return; }
+  const histDiv = document.getElementById('an-vehicle-history');
+  histDiv.innerHTML = '<span style="font-size:12px;color:#64748b">Searching…</span>';
+  try {
+    const res  = await apiFetch(capi('/vehicle-history/'+encodeURIComponent(reg)));
+    const jobs = await res.json();
+    if (!jobs.length) {
+      histDiv.innerHTML = '<div style="font-size:12px;color:#475569;padding:6px 0">No jobs found for this vehicle in the last 30 days.</div>';
+      return;
+    }
+    histDiv.innerHTML = `
+      <div style="font-size:11px;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Last 30 days — ${jobs.length} job(s)</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${jobs.map(j=>`
+          <div style="background:#0c1a2a;border:1px solid #1e293b;border-radius:8px;padding:8px 12px;display:flex;gap:10px;align-items:center;font-size:12px">
+            <span style="color:#94a3b8;font-family:monospace;font-weight:700">${j.id}</span>
+            <span style="color:#64748b">${j.date}</span>
+            <span style="color:#f1f5f9;flex:1">${j.location}</span>
+            <span style="color:#475569">${j.jobCategory||'Installation'}</span>
+            <span style="color:#38bdf8;font-size:11px">${j.status}</span>
+          </div>`).join('')}
+      </div>`;
+  } catch(e) {
+    histDiv.innerHTML = '<div style="font-size:12px;color:#f87171">Could not load vehicle history.</div>';
+  }
+}
+
+function clearVehicleHistory() {
+  const h = document.getElementById('an-vehicle-history');
+  if (h) h.innerHTML = '';
+}
+
+function updateAdminServiceForm(){ /* replaced by setJobCategory */ }
 document.addEventListener('change', e => {
   if (e.target.id === 'an-country') {
     const o = document.getElementById('an-country-other');
@@ -1002,11 +1061,21 @@ document.addEventListener('change', e => {
   }
 });
 async function populateNewJobForm() {
+  // Reset category state
+  _jobCategory = 'Installation';
+  document.getElementById('an-cat-install')?.classList.add('active');
+  document.getElementById('an-cat-service')?.classList.remove('active');
+  const vWrap = document.getElementById('an-vehicle-wrap');
+  if (vWrap) vWrap.style.display = 'none';
+  const histDiv = document.getElementById('an-vehicle-history');
+  if (histDiv) histDiv.innerHTML = '';
+
   try {
     const res  = await apiFetch(capi('/form-data'));
     const data = await res.json();
     const clients    = data.clients    || [];
     const installers = data.installers || [];
+    _formPricing = data.pricing || null;
 
     // Populate client dropdown grouped by company
     const clientSel = document.getElementById('an-client');
@@ -1045,6 +1114,19 @@ async function populateNewJobForm() {
       }
       countrySel.innerHTML += '<option value="__other__">Other (type below)</option>';
     }
+
+    // Populate product dropdown
+    const prodSel = document.getElementById('an-product');
+    if (prodSel && _formPricing) {
+      const products = _formPricing.products || [];
+      prodSel.innerHTML = products.length
+        ? products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')
+        : '<option value="">No products configured</option>';
+    }
+
+    // Populate type dropdown for current category
+    populateTypeDropdown();
+
   } catch(e) {
     console.error('Could not load form data:', e);
   }
@@ -1085,31 +1167,50 @@ async function submitAdminJob() {
   const anTH     = document.getElementById('an-time-h')?.value;
   const anTM     = document.getElementById('an-time-m')?.value;
   const time     = (anTH && anTM) ? anTH+':'+anTM : '';
-  const country = getSelectedCountry();
+  const country  = getSelectedCountry();
+  const product  = document.getElementById('an-product')?.value || '';
+  const jobType  = document.getElementById('an-type')?.value    || '';
+
   if (!location) { alert('Please enter a location.'); return; }
   if (!country)  { alert('Please select a country.'); return; }
-  if (!date)     { alert('Please select an installation date.'); return; }
-  if (!time)     { alert('Please select an installation time.'); return; }
+  if (!date)     { alert('Please select a service date.'); return; }
+  if (!time)     { alert('Please select a service time.'); return; }
   if (!document.getElementById('an-client').value) { alert('Please select a client.'); return; }
+  if (!jobType)  { alert('Please select a ' + (_jobCategory==='Installation'?'installation':'service') + ' type.'); return; }
+
+  // Resolve display names for legacy fields
+  const allTypes = _jobCategory==='Installation'
+    ? (_formPricing?.installationTypes||[])
+    : (_formPricing?.serviceTypes||[]);
+  const selectedType  = allTypes.find(t=>t.id===jobType);
+  const productName   = (_formPricing?.products||[]).find(p=>p.id===product)?.name || product;
+  const legacySvcType = selectedType?.name || (_jobCategory==='Installation' ? 'Installation' : 'Inspection');
+
   const btn = document.getElementById('an-submit-btn');
   btn.disabled = true; btn.textContent = 'Creating…';
   const res = await apiFetch(capi('/jobs'), {
     method: 'POST',
     body: JSON.stringify({
       location,
-      truck:        document.getElementById('an-truck').value.trim(),
-      contactName:  document.getElementById('an-contact-name').value.trim(),
-      contactPhone: document.getElementById('an-contact-phone').value.trim(),
-      country:      getSelectedCountry(),
+      truck:            document.getElementById('an-truck').value.trim(),
+      contactName:      document.getElementById('an-contact-name').value.trim(),
+      contactPhone:     document.getElementById('an-contact-phone').value.trim(),
+      country,
       date,
-      time:         (()=>{ const h=document.getElementById('an-time-h')?.value; const m=document.getElementById('an-time-m')?.value; return (h&&m)?h+':'+m:''; })(),
-      unitType:     document.getElementById('an-unit').value,
-      serviceType:  document.getElementById('an-service').value,
-      clientId:     document.getElementById('an-client').value,
+      time,
+      clientId:         document.getElementById('an-client').value,
+      // new Phase 1 fields
+      jobCategory:      _jobCategory,
+      product:          productName,
+      installationType: _jobCategory==='Installation' ? selectedType?.name : null,
+      serviceType:      legacySvcType,
+      unitType:         productName || 'Basic',
+      relatedVehicle:   _jobCategory==='Service' ? (document.getElementById('an-vehicle-reg')?.value.trim()||null) : null,
+      isWarrantyJob:    selectedType?.id === 'warranty',
     })
   });
   const data = await res.json();
-  btn.disabled = false; btn.textContent = 'Create Installation';
+  btn.disabled = false; btn.textContent = 'Create Job';
   if (data.ok) { closeNewJobModal(); loadAll(); }
   else alert('Error: ' + (data.error || 'Unknown'));
 }
@@ -1301,76 +1402,296 @@ function populateCurrentCredentials() {
   const emailField = document.getElementById('s-own-email');
   if (emailField && auth.email) emailField.value = auth.email;
 }
+let _pricing = null; // cached pricing config
+
 async function loadSettings() {
   const res = await apiFetch(capi('/settings'));
   _settings = await res.json();
+  const pRes = await apiFetch(capi('/pricing'));
+  _pricing = await pRes.json();
 
   document.getElementById('settings-content').innerHTML = `
-    <div style="max-width:560px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;flex-direction:column;gap:0">
+      <!-- Sub-tab bar -->
+      <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid #1e293b;padding-bottom:0">
+        <button id="stab-account" class="settings-tab active" onclick="switchSettingsTab('account')">👤 Account</button>
+        <button id="stab-pricing" class="settings-tab" onclick="switchSettingsTab('pricing')">💲 Products &amp; Pricing</button>
+      </div>
 
-      <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
-        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:16px">👤 Your Account</div>
-        <div style="background:#050b14;border:1px solid #1e293b;border-radius:10px;padding:14px 16px;margin-bottom:18px">
-          <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;font-size:13px">
-            <span style="color:#475569">Username</span><span id="s-cur-username" style="color:#e2e8f0;font-family:monospace">—</span>
-            <span style="color:#475569">Email</span><span id="s-cur-email" style="color:#e2e8f0;font-family:monospace">—</span>
-            <span style="color:#475569">Password</span><span style="color:#334155">••••••••</span>
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:12px">
-          <div>
-            <label class="form-label">Email Address</label>
-            <input class="form-input" id="s-own-email" type="email" placeholder="your@email.com"/>
-            <div style="font-size:11px;color:#475569;margin-top:3px">Used for system notifications and test emails</div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div>
-              <label class="form-label">New Username</label>
-              <input class="form-input" id="s-own-username" placeholder="Leave blank to keep"/>
-            </div>
-            <div>
-              <label class="form-label">New Password</label>
-              <div style="position:relative">
-                <input class="form-input" id="s-own-password" type="password" placeholder="Leave blank to keep" style="padding-right:36px"/>
-                <button type="button" onclick="(function(){const i=document.getElementById('s-own-password');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'}).call(this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:14px;color:#64748b;padding:0;line-height:1">👁</button>
+      <!-- ── ACCOUNT TAB ─────────────────────────────────────────────────── -->
+      <div id="stab-panel-account" style="display:flex;flex-direction:column;gap:20px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+
+          <!-- Your Account card -->
+          <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+            <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:16px">Your Account</div>
+            <div style="background:#050b14;border:1px solid #1e293b;border-radius:10px;padding:14px 16px;margin-bottom:18px">
+              <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;font-size:13px">
+                <span style="color:#475569">Username</span><span id="s-cur-username" style="color:#e2e8f0;font-family:monospace">—</span>
+                <span style="color:#475569">Email</span><span id="s-cur-email" style="color:#e2e8f0;font-family:monospace">—</span>
+                <span style="color:#475569">Password</span><span style="color:#334155">••••••••</span>
               </div>
             </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label class="form-label">Email Address</label>
+                <input class="form-input" id="s-own-email" type="email" placeholder="your@email.com"/>
+                <div style="font-size:11px;color:#475569;margin-top:3px">Used for system notifications</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div>
+                  <label class="form-label">New Username</label>
+                  <input class="form-input" id="s-own-username" placeholder="Leave blank to keep"/>
+                </div>
+                <div>
+                  <label class="form-label">New Password</label>
+                  <div style="position:relative">
+                    <input class="form-input" id="s-own-password" type="password" placeholder="Leave blank to keep" style="padding-right:36px"/>
+                    <button type="button" onclick="(function(){const i=document.getElementById('s-own-password');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁':'🙈'}).call(this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:14px;color:#64748b;padding:0;line-height:1">👁</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button class="btn-primary" style="margin-top:16px" onclick="saveOwnCredentials()">Save Account</button>
+            <div id="s-own-msg" style="font-size:13px;margin-top:8px"></div>
+          </div>
+
+          <!-- Company Details + Email Test -->
+          <div style="display:flex;flex-direction:column;gap:20px">
+            <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+              <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:16px">🏢 Company Details</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div>
+                  <label class="form-label">Company Name</label>
+                  <input class="form-input" id="s-company" value="${_settings.companyName||''}"/>
+                </div>
+                <div>
+                  <label class="form-label">Admin Name</label>
+                  <input class="form-input" id="s-admin" value="${_settings.adminName||''}"/>
+                </div>
+              </div>
+              <button class="btn-primary" style="margin-top:16px" onclick="saveBranding()">Save Company Details</button>
+              <div id="s-brand-msg" style="font-size:13px;margin-top:8px"></div>
+            </div>
+            <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+              <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:6px">✉️ Email Notifications</div>
+              <div style="font-size:13px;color:#64748b;margin-bottom:16px">Team member emails are managed in the <b style="color:#94a3b8">Team</b> tab.</div>
+              <div style="display:flex;gap:8px">
+                <input class="form-input" id="s-test-email-to" placeholder="Enter email to test..." style="flex:1"/>
+                <button class="btn-secondary" onclick="testEmail()" style="white-space:nowrap">📧 Send Test</button>
+              </div>
+              <div id="s-test-email-msg" style="font-size:13px;margin-top:8px"></div>
+            </div>
           </div>
         </div>
-        <button class="btn-primary" style="margin-top:16px" onclick="saveOwnCredentials()">Save Account</button>
-        <div id="s-own-msg" style="font-size:13px;margin-top:8px"></div>
-      </div>
+      </div><!-- /account tab -->
 
-      <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
-        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:16px">🏢 Company Details</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <div>
-            <label class="form-label">Company Name</label>
-            <input class="form-input" id="s-company" value="${_settings.companyName||''}"/>
+      <!-- ── PRODUCTS & PRICING TAB ──────────────────────────────────────── -->
+      <div id="stab-panel-pricing" style="display:none;flex-direction:column;gap:20px">
+
+        <!-- Rates row -->
+        <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+            <div style="font-size:15px;font-weight:700;color:#f1f5f9">⚙️ Rates &amp; Currency</div>
+            <button class="btn-primary" style="padding:7px 18px;font-size:13px" onclick="savePricing()">Save All Pricing</button>
           </div>
-          <div>
-            <label class="form-label">Admin Name</label>
-            <input class="form-input" id="s-admin" value="${_settings.adminName||''}"/>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+            <div>
+              <label class="form-label">Currency</label>
+              <select class="form-input" id="p-currency">
+                <option value="USD">USD — US Dollar ($)</option>
+                <option value="ZAR">ZAR — South African Rand (R)</option>
+                <option value="ZMW">ZMW — Zambian Kwacha (K)</option>
+                <option value="ZWL">ZWL — Zimbabwe Dollar (Z$)</option>
+                <option value="EUR">EUR — Euro (€)</option>
+                <option value="GBP">GBP — British Pound (£)</option>
+                <option value="KES">KES — Kenyan Shilling (KSh)</option>
+                <option value="NGN">NGN — Nigerian Naira (₦)</option>
+                <option value="GHS">GHS — Ghanaian Cedi (₵)</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label">Travel Rate (per hour)</label>
+              <input class="form-input" id="p-travel-rate" type="number" min="0" step="0.01" placeholder="e.g. 8.00"/>
+            </div>
+            <div>
+              <label class="form-label">Default Service Rate (per hour)</label>
+              <input class="form-input" id="p-service-rate" type="number" min="0" step="0.01" placeholder="e.g. 10.00"/>
+            </div>
+          </div>
+          <div id="s-pricing-msg" style="font-size:13px;margin-top:12px"></div>
+        </div>
+
+        <!-- Products + Installation Types side by side -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+
+          <!-- Products -->
+          <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div style="font-size:15px;font-weight:700;color:#f1f5f9">📦 Products</div>
+              <button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="addPricingProduct()">+ Add</button>
+            </div>
+            <div id="p-products-list" style="display:flex;flex-direction:column;gap:8px"></div>
+          </div>
+
+          <!-- Installation Types -->
+          <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div style="font-size:15px;font-weight:700;color:#f1f5f9">🔧 Installation Types</div>
+              <button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="addPricingInstType()">+ Add</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;padding:0 2px;margin-bottom:6px">
+              <span>Name</span><span>Price</span><span></span>
+            </div>
+            <div id="p-inst-types-list" style="display:flex;flex-direction:column;gap:6px"></div>
           </div>
         </div>
-        <button class="btn-primary" style="margin-top:16px" onclick="saveBranding()">Save Company Details</button>
-        <div id="s-brand-msg" style="font-size:13px;margin-top:8px"></div>
-      </div>
 
-      <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
-        <div style="font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:6px">✉️ Email Notifications</div>
-        <div style="font-size:13px;color:#64748b;margin-bottom:16px">Team member emails are managed in the <b style="color:#94a3b8">Team</b> tab. Emails are sent via the WebAncher platform.</div>
-        <div style="display:flex;gap:8px">
-          <input class="form-input" id="s-test-email-to" placeholder="Enter email to test..." style="flex:1"/>
-          <button class="btn-secondary" onclick="testEmail()" style="white-space:nowrap">📧 Send Test</button>
+        <!-- Service Types full width -->
+        <div style="background:#0a1220;border:1px solid #1e293b;border-radius:14px;padding:24px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <div style="font-size:15px;font-weight:700;color:#f1f5f9">🛠️ Service Types</div>
+            <button class="btn-secondary" style="padding:5px 12px;font-size:12px" onclick="addPricingSvcType()">+ Add</button>
+          </div>
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.05em;padding:0 2px;margin-bottom:6px">
+            <span>Name</span><span>Use Service Rate?</span><span>Fixed Price</span><span></span>
+          </div>
+          <div id="p-svc-types-list" style="display:flex;flex-direction:column;gap:6px"></div>
         </div>
-        <div id="s-test-email-msg" style="font-size:13px;margin-top:8px"></div>
-      </div>
 
+      </div><!-- /pricing tab -->
     </div>
   `;
+
   populateCurrentCredentials();
+  renderPricingUI();
 }
+
+function switchSettingsTab(tab) {
+  ['account','pricing'].forEach(t => {
+    document.getElementById('stab-'+t).classList.toggle('active', t===tab);
+    const panel = document.getElementById('stab-panel-'+t);
+    panel.style.display = t===tab ? 'flex' : 'none';
+  });
+}
+
+// ── PRICING UI ────────────────────────────────────────────────────────────────
+function renderPricingUI() {
+  if (!_pricing) return;
+  const cur = document.getElementById('p-currency');
+  if (cur) cur.value = _pricing.currency || 'USD';
+  const tr = document.getElementById('p-travel-rate');
+  if (tr) tr.value = _pricing.travelRate ?? '';
+  const sr = document.getElementById('p-service-rate');
+  if (sr) sr.value = _pricing.serviceRate ?? '';
+
+  renderProductsList();
+  renderInstTypesList();
+  renderSvcTypesList();
+}
+
+function renderProductsList() {
+  const list = document.getElementById('p-products-list');
+  if (!list || !_pricing) return;
+  list.innerHTML = '';
+  (_pricing.products || []).forEach((p, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center';
+    row.innerHTML = `
+      <input class="form-input" style="flex:1;font-size:13px" value="${p.name||''}"
+        oninput="_pricing.products[${i}].name=this.value" placeholder="Product name"/>
+      <button onclick="removePricingItem('products',${i})" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:16px;padding:2px 6px;flex-shrink:0">✕</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderInstTypesList() {
+  const list = document.getElementById('p-inst-types-list');
+  if (!list || !_pricing) return;
+  list.innerHTML = '';
+  (_pricing.installationTypes || []).forEach((t, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center';
+    row.innerHTML = `
+      <input class="form-input" style="font-size:13px" value="${t.name||''}"
+        oninput="_pricing.installationTypes[${i}].name=this.value" placeholder="Type name"/>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#94a3b8;white-space:nowrap;cursor:pointer">
+          <input type="checkbox" ${t.useServiceRate?'checked':''} onchange="_pricing.installationTypes[${i}].useServiceRate=this.checked;renderInstTypesList()" style="cursor:pointer"/>
+          Svc rate
+        </label>
+        <input class="form-input" style="font-size:13px;${t.useServiceRate?'opacity:.4;pointer-events:none':''}" type="number" min="0" step="0.01"
+          value="${t.price!=null?t.price:''}" placeholder="Price"
+          oninput="_pricing.installationTypes[${i}].price=this.value===''?null:parseFloat(this.value)"/>
+      </div>
+      <button onclick="removePricingItem('installationTypes',${i})" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:16px;padding:2px 6px">✕</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderSvcTypesList() {
+  const list = document.getElementById('p-svc-types-list');
+  if (!list || !_pricing) return;
+  list.innerHTML = '';
+  (_pricing.serviceTypes || []).forEach((t, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;align-items:center';
+    row.innerHTML = `
+      <input class="form-input" style="font-size:13px" value="${t.name||''}"
+        oninput="_pricing.serviceTypes[${i}].name=this.value" placeholder="Type name"/>
+      <div style="display:flex;align-items:center;justify-content:center">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#94a3b8;cursor:pointer">
+          <input type="checkbox" ${t.useServiceRate?'checked':''} onchange="_pricing.serviceTypes[${i}].useServiceRate=this.checked;renderSvcTypesList()" style="cursor:pointer"/>
+          Yes
+        </label>
+      </div>
+      <input class="form-input" style="font-size:13px;${t.useServiceRate?'opacity:.4;pointer-events:none':''}" type="number" min="0" step="0.01"
+        value="${t.price!=null?t.price:''}" placeholder="Price or 0"
+        oninput="_pricing.serviceTypes[${i}].price=this.value===''?null:parseFloat(this.value)"/>
+      <button onclick="removePricingItem('serviceTypes',${i})" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:16px;padding:2px 6px">✕</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addPricingProduct() {
+  if (!_pricing.products) _pricing.products = [];
+  _pricing.products.push({ id: 'prod-'+Date.now(), name: '' });
+  renderProductsList();
+}
+function addPricingInstType() {
+  if (!_pricing.installationTypes) _pricing.installationTypes = [];
+  _pricing.installationTypes.push({ id: 'inst-'+Date.now(), name: '', useServiceRate: false, price: null });
+  renderInstTypesList();
+}
+function addPricingSvcType() {
+  if (!_pricing.serviceTypes) _pricing.serviceTypes = [];
+  _pricing.serviceTypes.push({ id: 'svc-'+Date.now(), name: '', useServiceRate: true, price: null });
+  renderSvcTypesList();
+}
+function removePricingItem(key, idx) {
+  _pricing[key].splice(idx, 1);
+  if (key==='products')           renderProductsList();
+  else if (key==='installationTypes') renderInstTypesList();
+  else if (key==='serviceTypes')  renderSvcTypesList();
+}
+
+async function savePricing() {
+  _pricing.currency    = document.getElementById('p-currency').value;
+  _pricing.travelRate  = parseFloat(document.getElementById('p-travel-rate').value) || 0;
+  _pricing.serviceRate = parseFloat(document.getElementById('p-service-rate').value) || 0;
+
+  const res  = await apiFetch(capi('/pricing'), { method:'PUT', body:JSON.stringify(_pricing) });
+  const data = await res.json();
+  const msg  = document.getElementById('s-pricing-msg');
+  if (data.ok) {
+    msg.style.color='#34d399'; msg.textContent='Pricing saved!';
+    setTimeout(()=>msg.textContent='',2500);
+  } else { msg.style.color='#f87171'; msg.textContent=data.error||'Error saving'; }
+}
+
 async function saveBranding() {
   const companyName = document.getElementById('s-company').value.trim();
   const adminName   = document.getElementById('s-admin').value.trim();
@@ -1877,27 +2198,44 @@ checkAuth();
           <option value="">Loading clients…</option>
         </select>
       </div>
+      <!-- Category -->
       <div class="form-field" style="grid-column:1/-1">
-        <label class="form-label">Service Type <span style="color:#f87171">*</span></label>
-        <select class="form-input" id="an-service" onchange="updateAdminServiceForm()">
-          <option value="Installation">Installation</option>
-          <option value="Inspection">Inspection</option>
-          <option value="Remove and Install">Remove and Install</option>
-          <option value="Decommissioning">Decommissioning</option>
+        <label class="form-label">Job Category <span style="color:#f87171">*</span></label>
+        <div style="display:flex;gap:8px">
+          <button type="button" id="an-cat-install" class="cat-btn active" onclick="setJobCategory('Installation')">🔧 Installation</button>
+          <button type="button" id="an-cat-service"  class="cat-btn"        onclick="setJobCategory('Service')">🛠️ Service</button>
+        </div>
+      </div>
+      <!-- Product -->
+      <div class="form-field" style="grid-column:1/-1">
+        <label class="form-label">Product <span style="color:#f87171">*</span></label>
+        <select class="form-input" id="an-product">
+          <option value="">Loading products…</option>
         </select>
       </div>
-      <div class="form-field" style="grid-column:1/-1" id="an-unit-wrap">
-        <label class="form-label">Unit Type</label>
-        <select class="form-input" id="an-unit">
-          <option>Basic</option>
-          <option>Advanced</option>
+      <!-- Type — dynamically changes based on category -->
+      <div class="form-field" style="grid-column:1/-1">
+        <label class="form-label" id="an-type-label">Installation Type <span style="color:#f87171">*</span></label>
+        <select class="form-input" id="an-type">
+          <option value="">Select type…</option>
         </select>
+      </div>
+      <!-- Service-only: related vehicle lookup -->
+      <div id="an-vehicle-wrap" style="grid-column:1/-1;display:none">
+        <div style="display:flex;gap:8px;align-items:flex-end">
+          <div style="flex:1">
+            <label class="form-label">Related Vehicle Registration</label>
+            <input class="form-input" id="an-vehicle-reg" placeholder="e.g. CA 123-456" oninput="clearVehicleHistory()"/>
+          </div>
+          <button type="button" class="btn-secondary" style="white-space:nowrap;padding:8px 14px;font-size:13px" onclick="lookupVehicleHistory()">🔍 Lookup</button>
+        </div>
+        <div id="an-vehicle-history" style="margin-top:8px"></div>
       </div>
     </div>
     <div id="an-installer-note" style="margin-top:10px;padding:10px 12px;background:#0c1a2a;border-radius:8px;font-size:12px;color:#64748b"></div>
     <div class="modal-btns">
       <button class="btn-secondary" style="flex:1" onclick="closeNewJobModal()">Cancel</button>
-      <button class="btn-primary" style="flex:2" id="an-submit-btn" onclick="submitAdminJob()">Create Installation</button>
+      <button class="btn-primary" style="flex:2" id="an-submit-btn" onclick="submitAdminJob()">Create Job</button>
     </div>
   </div>
 </div>
