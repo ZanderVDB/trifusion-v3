@@ -319,6 +319,46 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok:true });
 });
 
+// ── HQ: Login as any user (impersonation) ────────────────────────────────────
+app.post('/api/hq/login-as', requireAuth('hq'), (req, res) => {
+  const { companyId, username } = req.body;
+  if (!companyId || !username) return res.json({ ok:false, error:'Missing companyId or username' });
+  const users = getCompanyUsers(companyId);
+  const user  = users[username];
+  if (!user) return res.json({ ok:false, error:'User not found' });
+
+  const settings = getCompanySettings(companyId);
+  const token = crypto.randomBytes(32).toString('hex');
+  tokenStore[token] = {
+    username,
+    role:                 user.role,
+    name:                 user.name,
+    companyId,
+    companyName:          settings.companyName || companyId,
+    installer:            user.installer            || null,
+    clientId:             user.clientId             || null,
+    clientCompanyName:    user.companyName           || null,
+    installerCompanyName: user.companyName           || null,
+    email:                user.email                || null,
+  };
+  saveTokens();
+
+  const redirect = user.role === 'admin'     ? `/${companyId}/admin`
+                 : user.role === 'client'    ? `/${companyId}/client`
+                 : user.role === 'installer' ? `/${companyId}/installer`
+                 : '/';
+
+  res.json({ ok:true, token, redirect,
+    username, role:user.role, name:user.name, companyId,
+    companyName:          settings.companyName || companyId,
+    installer:            user.installer            || null,
+    clientId:             user.clientId             || null,
+    clientCompanyName:    user.companyName           || null,
+    installerCompanyName: user.companyName           || null,
+    email:                user.email                || null,
+  });
+});
+
 app.get('/api/me', (req, res) => {
   const auth  = req.headers['authorization'] || '';
   const token = auth.replace('Bearer ','').trim();
