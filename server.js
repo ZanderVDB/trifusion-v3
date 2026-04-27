@@ -1742,77 +1742,91 @@ app.get('/:cid/installer', (req,res) => res.sendFile(path.join(PUBLIC_DIR,'compa
 app.get('/:cid/login',     (req,res) => res.sendFile(path.join(PUBLIC_DIR,'login.html')));
 
 // ── START ─────────────────────────────────────────────────────────────────────
-// ── Database seed (runs on startup if DB is empty) ────────────────────────────
+// ── Database seed (runs on startup — creates missing files, patches wrong data) ─
 function seedDatabase() {
-  // Seed superadmin
+  // ── Superadmin dir ───────────────────────────────────────────────────────────
+  fs.mkdirSync(path.join(DB_DIR, 'superadmin'), { recursive: true });
+
+  // HQ credentials
   const hqFile = path.join(DB_DIR, 'superadmin', 'hq.json');
-  fs.mkdirSync(path.dirname(hqFile), { recursive: true });
-  if (!fs.existsSync(hqFile)) {
-    writeJSON(hqFile, { username:'webancherhq', password:'hq@WebAncher2025', name:'WebAncher HQ', resendApiKey:'' });
-    console.log('[SEED] Created HQ credentials');
+  const hq = readJSON(hqFile, {});
+  if (!hq.username) {
+    writeJSON(hqFile, { username:'webancherhq', password:'hq@WebAncher2025', name:'WebAncher HQ', resendApiKey:'', fromEmail:'' });
+    console.log('[SEED] hq.json created');
   }
 
+  // Tokens / signups
+  const tokensFile = path.join(DB_DIR, 'superadmin', 'tokens.json');
+  if (!fs.existsSync(tokensFile)) writeJSON(tokensFile, {});
+  const signupsFile = path.join(DB_DIR, 'superadmin', 'signups.json');
+  if (!fs.existsSync(signupsFile)) writeJSON(signupsFile, []);
+
+  // Companies registry — ensure both companies exist
   const companiesFile = path.join(DB_DIR, 'superadmin', 'companies.json');
-  if (!fs.existsSync(companiesFile)) {
-    writeJSON(companiesFile, [{ companyId:'trifusion', companyName:'Trifusion', adminName:'Zander', status:'active', createdAt:'2025-01-01' }]);
-    console.log('[SEED] Created companies');
+  let companies = readJSON(companiesFile, []);
+  let companiesChanged = false;
+  if (!companies.some(c=>c.companyId==='trifusion')) {
+    companies.push({ companyId:'trifusion', companyName:'Trifusion', adminName:'Zander', status:'active', createdAt:'2025-01-01' });
+    companiesChanged = true;
   }
+  if (!companies.some(c=>c.companyId==='fleettrack')) {
+    companies.push({ companyId:'fleettrack', companyName:'FleetTrack', adminName:'Alex Mercer', status:'active', createdAt:'2025-01-01' });
+    companiesChanged = true;
+  }
+  if (companiesChanged) { writeJSON(companiesFile, companies); console.log('[SEED] companies.json updated'); }
 
-  // Seed Trifusion company
+  // ── Trifusion ────────────────────────────────────────────────────────────────
   const trifDir = path.join(DB_DIR, 'companies', 'trifusion');
   fs.mkdirSync(trifDir, { recursive: true });
+  if (!fs.existsSync(path.join(trifDir,'jobs.json')))     writeJSON(path.join(trifDir,'jobs.json'), []);
+  if (!fs.existsSync(path.join(trifDir,'settings.json'))) writeJSON(path.join(trifDir,'settings.json'), { companyName:'Trifusion', adminName:'Zander' });
 
-  const usersFile = path.join(trifDir, 'users.json');
-  if (!fs.existsSync(usersFile)) {
-    writeJSON(usersFile, {
-      admin:   { username:'admin',   password:'admin123',   role:'admin',     name:'Zander',  companyId:'trifusion', email:'', createdAt:'2025-01-01' },
-      david:   { username:'david',   password:'korridor123',role:'client',    name:'David',   clientId:'david',  companyName:'Korridor', companyId:'trifusion', email:'', createdAt:'2025-01-01' },
-      natan:   { username:'natan',   password:'korridor456',role:'client',    name:'Natan',   clientId:'natan',  companyName:'Korridor', companyId:'trifusion', email:'', createdAt:'2025-01-01' },
-      brigade: { username:'brigade', password:'brigade123', role:'installer', name:'Brigade', installer:'Brigade', companyName:'Brigade', countries:['South Africa'], companyId:'trifusion', email:'', createdAt:'2025-01-01' },
-      zamaka:  { username:'zamaka',  password:'zamaka123',  role:'installer', name:'Zamaka',  installer:'Zamaka',  companyName:'Zamaka',  countries:['Zambia'],       companyId:'trifusion', email:'', createdAt:'2025-01-01' },
-    });
-    console.log('[SEED] Created Trifusion users');
+  const triUsersFile = path.join(trifDir, 'users.json');
+  let triUsers = readJSON(triUsersFile, {});
+  let triChanged = false;
+  // Remove stale placeholder admin
+  if (triUsers.admin && triUsers.admin.password === 'admin123') {
+    delete triUsers.admin; triChanged = true;
   }
+  const triSeed = {
+    trifusionadmin:{ username:'trifusionadmin', password:'3Zg3GjS&qmXuixm', role:'admin',     name:'Zander',  companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+    david:         { username:'david',          password:'tg3nRN*iG3',       role:'client',    name:'David',   clientId:'david',  companyName:'Korridor', companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+    natan:         { username:'natan',          password:'jK85Mv%b7s',       role:'client',    name:'Natan',   clientId:'natan',  companyName:'Korridor', companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+    brigade:       { username:'brigade',        password:'$w8Dy5*f&h',       role:'installer', name:'Riaan',   installer:'Riaan',  companyName:'Brigade', countries:['South Africa'], companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+    zamaka:        { username:'zamaka',         password:'%fKUV5MmBV',       role:'installer', name:'Cosmos',  installer:'Cosmos', companyName:'Zamaka',  countries:['Zambia'],       companyId:'trifusion', email:'', createdAt:'2025-01-01' },
+  };
+  Object.entries(triSeed).forEach(([k,v]) => {
+    if (!triUsers[k]) { triUsers[k] = v; triChanged = true; }
+  });
+  // Patch installer companyName if missing
+  Object.values(triUsers).forEach(u => {
+    if (u.role==='installer' && !u.companyName) { u.companyName = u.installer||u.name||''; triChanged = true; }
+  });
+  if (triChanged) { writeJSON(triUsersFile, triUsers); console.log('[SEED] trifusion users.json updated'); }
 
-  const settingsFile = path.join(trifDir, 'settings.json');
-  if (!fs.existsSync(settingsFile)) {
-    writeJSON(settingsFile, { companyName:'Trifusion', adminName:'Zander', branding:{}, emails:{}, jobCounter:0 });
-    console.log('[SEED] Created Trifusion settings');
-  }
+  // ── FleetTrack ───────────────────────────────────────────────────────────────
+  const ftDir = path.join(DB_DIR, 'companies', 'fleettrack');
+  fs.mkdirSync(ftDir, { recursive: true });
+  if (!fs.existsSync(path.join(ftDir,'jobs.json')))     writeJSON(path.join(ftDir,'jobs.json'), []);
+  if (!fs.existsSync(path.join(ftDir,'settings.json'))) writeJSON(path.join(ftDir,'settings.json'), { companyName:'FleetTrack', adminName:'Alex Mercer' });
 
-  const jobsFile = path.join(trifDir, 'jobs.json');
-  if (!fs.existsSync(jobsFile)) {
-    writeJSON(jobsFile, []);
-    console.log('[SEED] Created empty jobs file');
-  }
+  const ftUsersFile = path.join(ftDir, 'users.json');
+  let ftUsers = readJSON(ftUsersFile, {});
+  let ftChanged = false;
+  const ftSeed = {
+    ftadmin: { username:'ftadmin', password:'123', role:'admin',     name:'Alex Mercer',       companyId:'fleettrack', email:'', createdAt:'2025-01-01' },
+    sarahk:  { username:'sarahk',  password:'123', role:'client',    name:'Sarah Kruger',      clientId:'sarahk', companyName:'Rapid Logistics', companyId:'fleettrack', email:'', createdAt:'2025-01-01' },
+    mikeb:   { username:'mikeb',   password:'123', role:'client',    name:'Mike Botha',         clientId:'mikeb',  companyName:'TransAfrica',     companyId:'fleettrack', email:'', createdAt:'2025-01-01' },
+    lunab:   { username:'lunab',   password:'123', role:'client',    name:'Luna Booysen',       clientId:'lunab',  companyName:'Cape Fleet Co',   companyId:'fleettrack', email:'', createdAt:'2025-01-01' },
+    jakevdm: { username:'jakevdm', password:'123', role:'installer', name:'Jake van der Merwe', installer:'Jake van der Merwe', companyName:'SA Installers',       countries:['South Africa'], companyId:'fleettrack', email:'', createdAt:'2025-01-01' },
+    petros:  { username:'petros',  password:'123', role:'installer', name:'Petros Dlamini',     installer:'Petros Dlamini',     companyName:'Zambia Installers',   countries:['Zambia'],        companyId:'fleettrack', email:'', createdAt:'2025-01-01' },
+    emeka:   { username:'emeka',   password:'123', role:'installer', name:'Emeka Osei',          installer:'Emeka Osei',          companyName:'Zimbabwe Installers', countries:['Zimbabwe'],      companyId:'fleettrack', email:'', createdAt:'2025-01-01' },
+  };
+  Object.entries(ftSeed).forEach(([k,v]) => {
+    if (!ftUsers[k]) { ftUsers[k] = v; ftChanged = true; }
+  });
+  if (ftChanged) { writeJSON(ftUsersFile, ftUsers); console.log('[SEED] fleettrack users.json updated'); }
 
-  const tokensFile = path.join(DB_DIR, 'superadmin', 'tokens.json');
-  if (!fs.existsSync(tokensFile)) {
-    writeJSON(tokensFile, {});
-    console.log('[SEED] Created tokens file');
-  }
-
-  const signupsFile = path.join(DB_DIR, 'superadmin', 'signups.json');
-  if (!fs.existsSync(signupsFile)) {
-    writeJSON(signupsFile, []);
-  }
-
-  // Patch existing installers missing companyName
-  try {
-    const trifDir2 = path.join(DB_DIR, 'companies', 'trifusion');
-    const uFile2 = path.join(trifDir2, 'users.json');
-    if (fs.existsSync(uFile2)) {
-      const u2 = readJSON(uFile2, {});
-      let patched = false;
-      Object.values(u2).forEach(user => {
-        if (user.role === 'installer' && !user.companyName) {
-          user.companyName = user.installer || user.name || '';
-          patched = true;
-        }
-      });
-      if (patched) { writeJSON(uFile2, u2); console.log('[SEED] Patched installer companyNames'); }
-    }
-  } catch(e) {}
   console.log('[SEED] Database check complete');
 }
 
