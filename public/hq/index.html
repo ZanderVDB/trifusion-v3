@@ -519,12 +519,19 @@ async function loadDetailUsers(cid) {
 }
 
 async function loginAs(companyId, username) {
+  // Open the window FIRST (synchronous, inside click handler) so browser allows it
+  const w = window.open('about:blank', '_blank');
+  if (!w) { alert('Pop-up blocked — please allow pop-ups for this site.'); return; }
+  w.document.write(`<!DOCTYPE html><html><head><title>Logging in…</title></head><body>
+    <p style="font-family:sans-serif;color:#94a3b8;padding:40px;font-size:14px">⏳ Logging in…</p>
+  </body></html>`);
+
   const res  = await apiFetch('/api/hq/login-as', { method:'POST', body: JSON.stringify({ companyId, username }) });
   const data = await res.json();
-  if (!data.ok) { alert('Could not log in as this user: ' + (data.error||'Unknown error')); return; }
+  if (!data.ok) { w.close(); alert('Could not log in as this user: ' + (data.error||'Unknown error')); return; }
 
   // Store auth in localStorage (shared across all tabs on this origin)
-  const authPayload = JSON.stringify({
+  localStorage.setItem('tf_auth_' + data.username, JSON.stringify({
     token:                data.token,
     role:                 data.role,
     name:                 data.name,
@@ -536,14 +543,11 @@ async function loginAs(companyId, username) {
     clientCompanyName:    data.clientCompanyName    || null,
     installerCompanyName: data.installerCompanyName || null,
     email:                data.email                || null,
-  });
-  localStorage.setItem('tf_auth_' + data.username, authPayload);
+  }));
 
-  // Open a new tab, set its sessionStorage slot, then redirect to the portal
-  const w = window.open('about:blank', '_blank');
-  if (!w) { alert('Pop-up blocked — please allow pop-ups for this site.'); return; }
+  // Navigate the already-open window to the portal
   w.document.write(`<!DOCTYPE html><html><head><title>Logging in…</title></head><body>
-    <p style="font-family:sans-serif;color:#64748b;padding:20px">Logging in as <strong>${data.name}</strong>…</p>
+    <p style="font-family:sans-serif;color:#94a3b8;padding:40px;font-size:14px">Logging in as <strong style="color:#f1f5f9">${data.name}</strong>…</p>
     <script>
       sessionStorage.setItem('tf_slot', ${JSON.stringify(data.username)});
       window.location.href = ${JSON.stringify(data.redirect)};
