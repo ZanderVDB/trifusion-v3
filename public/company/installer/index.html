@@ -724,6 +724,61 @@ function renderDetail(id){
     ${problemBanner}${confirmedBanner}${counterBanner}${acceptedReschedule}${rejectedReschedule}${(isClientCounter||isPending)?'':acceptBanner}${pendingBanner}
     ${threadHTML}
 
+    ${isAccepted && !j.clientConfirmed ? `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title" style="margin-bottom:12px">⏱ Time Tracking</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+        ${(()=>{
+          const tt = j.timeTracking||{};
+          function timeBtn(label, onclick, color='#38bdf8') {
+            return `<button onclick="${onclick}" style="width:100%;padding:9px 6px;border-radius:8px;border:1px solid ${color}33;background:${color}11;color:${color};font-size:12px;font-weight:600;cursor:pointer">${label}</button>`;
+          }
+          function doneChip(label) { return `<div style="font-size:12px;color:#34d399;font-weight:600">✓ ${label}</div>`; }
+          function fmtT(iso) { return iso ? new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : ''; }
+          function dur(a,b) { if(!a||!b) return ''; const m=Math.round((new Date(b)-new Date(a))/60000); return m>=60?Math.floor(m/60)+'h '+( m%60?m%60+'m':''):m+'m'; }
+
+          const travelBlock = tt.travelEnd
+            ? doneChip('Travel: '+dur(tt.travelStart,tt.travelEnd))
+            : tt.travelStart
+            ? `<div style="font-size:11px;color:#94a3b8;margin-bottom:5px">Started ${fmtT(tt.travelStart)}</div>${timeBtn('🏁 End Travel',"logTime('${j.id}','travel_end')")}`
+            : timeBtn('🚗 Start Travel',"logTime('${j.id}','travel_start')");
+
+          const installBlock = tt.installEnd
+            ? doneChip('Install: '+dur(tt.installStart,tt.installEnd))
+            : tt.installStart
+            ? `<div style="font-size:11px;color:#94a3b8;margin-bottom:5px">Started ${fmtT(tt.installStart)}</div>${timeBtn('✅ End Install',"logTime('${j.id}','install_end')","#34d399")}`
+            : timeBtn('⏱ Start Install',"logTime('${j.id}','install_start')","#34d399");
+
+          return `
+            <div style="background:#050b14;border:1px solid #1e293b;border-radius:8px;padding:10px">
+              <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Travel</div>
+              ${travelBlock}
+            </div>
+            <div style="background:#050b14;border:1px solid #1e293b;border-radius:8px;padding:10px">
+              <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Installation</div>
+              ${installBlock}
+            </div>`;
+        })()}
+      </div>
+      <div style="border-top:1px solid #1e293b;padding-top:10px">
+        <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">⏸ Log Standing Time (delays / waiting)</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input id="st-reason-${j.id}" class="form-input" placeholder="Reason for delay or waiting…" style="flex:1;min-width:140px;font-size:12px;padding:6px 10px"/>
+          <input id="st-mins-${j.id}" class="form-input" type="number" min="1" placeholder="Min" style="width:60px;font-size:12px;padding:6px 8px"/>
+          <button onclick="logStanding('${j.id}')" style="padding:6px 14px;border-radius:7px;border:1px solid #475569;background:#1e293b;color:#94a3b8;font-size:12px;font-weight:600;cursor:pointer">Log</button>
+        </div>
+        ${(j.timeTracking?.standingEntries||[]).length ? `
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px">
+          ${(j.timeTracking.standingEntries).map(e=>`
+            <div style="font-size:11px;padding:5px 8px;background:#0c1829;border-radius:6px;display:flex;align-items:center;gap:8px">
+              <span style="color:#94a3b8">${e.durationMinutes}min</span>
+              <span style="color:#64748b;flex:1">${e.reason}</span>
+              <span style="font-weight:700;color:${e.adminStatus==='approved'?'#34d399':e.adminStatus==='rejected'?'#f87171':'#fbbf24'}">${e.adminStatus}</span>
+            </div>`).join('')}
+        </div>` : ''}
+      </div>
+    </div>` : ''}
+
     ${isAccepted ? `<div>${checklistHTML}</div>` : `<div style="opacity:.4;pointer-events:none">${checklistHTML}</div>`}
     ${j.problemReport?.status==='open'?`
     <div style="background:#2a0f0f;border:2px solid #f87171;border-radius:12px;padding:16px 18px;margin-bottom:14px">
@@ -762,8 +817,20 @@ function renderDetail(id){
       <button onclick="undoTruckUnavailable('${j.id}')" style="background:#1e293b;border:1px solid #334155;border-radius:7px;padding:6px 14px;color:#94a3b8;font-size:12px;cursor:pointer">
         ✓ Truck is now available — Undo
       </button>
+    </div>` : ''}
+
+    ${isAccepted ? `
+    <div class="card" style="margin-top:14px">
+      <div class="card-title" style="margin-bottom:10px">💬 Job Chat</div>
+      <div id="chat-msgs-${j.id}" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+      <div style="display:flex;gap:6px">
+        <input id="chat-input-${j.id}" class="form-input" placeholder="Type a message…" style="flex:1;font-size:13px;padding:8px 12px" onkeydown="if(event.key==='Enter')chatSend('${j.id}')"/>
+        <button onclick="chatSend('${j.id}')" style="padding:8px 16px;border-radius:8px;background:#1e4d8c;border:none;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Send</button>
+      </div>
     </div>` : ''}`;
   } catch(err) { console.error('renderDetail error:', err); document.getElementById('detail-content').innerHTML='<div style="color:#f87171;padding:20px">Error rendering job: '+err.message+'</div>'; }
+  // Load chat after render
+  if (jobs.find(j=>j.id===jobId)?.accepted) setTimeout(()=>chatLoad(jobId),0);
 }
 
 async function acceptJob(jobId){
@@ -1035,6 +1102,57 @@ async function markProblemFixed(jobId) {
   const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
   renderDetail(jobId);
 }
+// ── TIME TRACKING ─────────────────────────────────────────────────────────────
+async function logTime(jobId, event) {
+  const res  = await apiFetch(capi(`/jobs/${jobId}/time-log`), { method:'POST', body:JSON.stringify({event}) });
+  const data = await res.json();
+  if (!data.ok) { alert(data.error||'Error'); return; }
+  const updated = await (await apiFetch(capi(`/jobs/${jobId}`))).json();
+  const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+  renderDetail(jobId);
+}
+
+async function logStanding(jobId) {
+  const reason = document.getElementById('st-reason-'+jobId)?.value.trim();
+  const mins   = document.getElementById('st-mins-'+jobId)?.value;
+  if (!reason) { alert('Please enter a reason.'); return; }
+  const res  = await apiFetch(capi(`/jobs/${jobId}/standing`), { method:'POST', body:JSON.stringify({ reason, durationMinutes: parseInt(mins)||0 }) });
+  const data = await res.json();
+  if (!data.ok) { alert(data.error||'Error'); return; }
+  const updated = await (await apiFetch(capi(`/jobs/${jobId}`))).json();
+  const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+  renderDetail(jobId);
+}
+
+// ── JOB CHAT ──────────────────────────────────────────────────────────────────
+let _chatIntervals = {};
+async function chatLoad(jobId) {
+  const el = document.getElementById('chat-msgs-'+jobId);
+  if (!el) return;
+  try {
+    const msgs = await (await apiFetch(capi(`/jobs/${jobId}/chat`))).json();
+    const myName = getAuth()?.name || '';
+    el.innerHTML = msgs.length ? msgs.map(m=>{
+      const mine = m.fromName===myName;
+      return `<div style="display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'}">
+        <div style="max-width:80%;background:${mine?'#1e4d8c':'#1e293b'};border-radius:10px;padding:7px 11px">
+          <div style="font-size:10px;color:#64748b;margin-bottom:2px">${mine?'You':m.fromName} · ${m.fromRole}</div>
+          <div style="font-size:13px;color:#f1f5f9">${m.message}</div>
+        </div>
+      </div>`;
+    }).join('') : '<div style="font-size:12px;color:#475569;text-align:center;padding:10px">No messages yet. Start the conversation.</div>';
+    el.scrollTop = el.scrollHeight;
+  } catch(e) {}
+}
+async function chatSend(jobId) {
+  const inp = document.getElementById('chat-input-'+jobId);
+  const msg = inp?.value.trim();
+  if (!msg) return;
+  inp.value = '';
+  await apiFetch(capi(`/jobs/${jobId}/chat`), { method:'POST', body:JSON.stringify({ message:msg }) });
+  chatLoad(jobId);
+}
+
 initPortal();
 // Ensure correct layout on load using RAF to run after all sync code
 requestAnimationFrame(() => {

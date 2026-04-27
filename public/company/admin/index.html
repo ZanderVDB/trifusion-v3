@@ -187,6 +187,7 @@
   <div class="tabs" style="margin-bottom:20px">
     <button class="tab-btn active" data-tab="overview" onclick="setMainTab('overview',this)">Overview</button>
     <button class="tab-btn" data-tab="jobs" onclick="setMainTab('jobs',this)">All Jobs<span class="tab-count" id="tc-jobs">0</span></button>
+    <button class="tab-btn" data-tab="financial" onclick="setMainTab('financial',this)">💰 Financial</button>
     <button class="tab-btn" data-tab="messages" onclick="setMainTab('messages',this)">Messages<span class="tab-count" id="tc-msgs">0</span></button>
     <button class="tab-btn" data-tab="users" onclick="setMainTab('users',this)">Team</button>
     <button class="tab-btn" data-tab="settings" onclick="setMainTab('settings',this)">Settings</button>
@@ -232,6 +233,13 @@
       </select>
     </div>
     <div id="jobs-list"></div>
+  </div>
+
+  <!-- FINANCIAL -->
+  <div id="tab-financial" style="display:none">
+    <div id="financial-content">
+      <div style="color:#475569;font-size:13px;padding:40px 0;text-align:center">Loading…</div>
+    </div>
   </div>
 
   <!-- MESSAGES -->
@@ -397,13 +405,14 @@ function setMainTab(tab,el){
   mainTab=tab;
   document.querySelectorAll('.tab-btn[data-tab]').forEach(b=>b.classList.remove('active'));
   if(el) el.classList.add('active');
-  ['overview','jobs','messages','users','settings'].forEach(t=>{
+  ['overview','jobs','financial','messages','users','settings'].forEach(t=>{
     const el=document.getElementById('tab-'+t); if(el) el.style.display=t===tab?'block':'none';
   });
   if(tab==='messages') loadMessages();
   if(tab==='jobs') renderJobsTab();
   if(tab==='users') loadUsers();
   if(tab==='settings') loadSettings();
+  if(tab==='financial') loadFinancial();
 }
 
 const STATUS_META = {
@@ -858,6 +867,204 @@ function renderModalContent(id){
     <div style="background:#0a2a1e;border:1px solid #34d39940;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#34d399">
       ✓ Client confirmed system OK — ${j.clientConfirmedAt}
     </div>` : '';
+  // ── Time Tracking panel ──────────────────────────────────────────────────
+  const tt = j.timeTracking || {};
+  function fmtTs(ts) { if(!ts) return '—'; const d=new Date(ts); return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+  function durLabel(a,b) { if(!a||!b) return ''; const m=Math.round((new Date(b)-new Date(a))/60000); if(m<0)return ''; return m+'m'; }
+  const standingRows = (tt.standingEntries||[]).map((e,ei)=>{
+    const entryStatus = e.adminStatus || e.status || 'pending';
+    const statusColor = entryStatus==='approved'?'#34d399':entryStatus==='rejected'?'#f87171':'#fbbf24';
+    const statusLabel = entryStatus==='approved'?'✓ Approved':entryStatus==='rejected'?'✕ Rejected':'⏳ Pending';
+    return `<div style="background:#0c1a2a;border:1px solid #1e293b;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;color:#e2e8f0;font-weight:600">${e.reason||'No reason given'}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">${e.durationMinutes} min &nbsp;·&nbsp; ${e.loggedAt||''}</div>
+          ${e.faultType?`<div style="font-size:11px;color:#fb923c;margin-top:2px">Fault: ${e.faultType}</div>`:''}
+        </div>
+        <div style="flex-shrink:0">
+          <span style="font-size:11px;font-weight:700;color:${statusColor}">${statusLabel}</span>
+        </div>
+      </div>
+      ${entryStatus==='pending'?`
+      <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <select id="fault-${j.id}-${ei}" class="form-input" style="font-size:12px;padding:5px 8px;flex:1;min-width:120px">
+          <option value="">No fault assigned</option>
+          <option value="Client">Client fault</option>
+          <option value="Installer">Installer fault</option>
+          <option value="Traffic">Traffic / External</option>
+          <option value="Technical">Technical issue</option>
+          <option value="Admin">Admin error</option>
+        </select>
+        <button onclick="adminApproveStanding('${j.id}','${e.id}','approved')" style="background:#14532d;border:1px solid #34d399;border-radius:6px;padding:5px 12px;color:#86efac;font-size:12px;cursor:pointer;flex-shrink:0">✓ Approve</button>
+        <button onclick="adminApproveStanding('${j.id}','${e.id}','rejected')" style="background:#2a0f0f;border:1px solid #f87171;border-radius:6px;padding:5px 12px;color:#fca5a5;font-size:12px;cursor:pointer;flex-shrink:0">✕ Reject</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
+
+  const timeTrackingHTML = `
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">⏱ Time Tracking</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div style="background:#0c1a2a;border:1px solid #1e293b;border-radius:8px;padding:12px">
+        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🚗 Travel</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-bottom:3px">
+          <span>Start</span><span style="color:#f1f5f9">${fmtTs(tt.travelStart)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-bottom:3px">
+          <span>End</span><span style="color:#f1f5f9">${fmtTs(tt.travelEnd)}</span>
+        </div>
+        ${tt.travelStart&&tt.travelEnd?`<div style="font-size:11px;color:#38bdf8;margin-top:4px">Duration: ${durLabel(tt.travelStart,tt.travelEnd)}</div>`:''}
+      </div>
+      <div style="background:#0c1a2a;border:1px solid #1e293b;border-radius:8px;padding:12px">
+        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🔧 Install</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-bottom:3px">
+          <span>Start</span><span style="color:#f1f5f9">${fmtTs(tt.installStart)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;margin-bottom:3px">
+          <span>End</span><span style="color:#f1f5f9">${fmtTs(tt.installEnd)}</span>
+        </div>
+        ${tt.installStart&&tt.installEnd?`<div style="font-size:11px;color:#38bdf8;margin-top:4px">Duration: ${durLabel(tt.installStart,tt.installEnd)}</div>`:''}
+      </div>
+    </div>
+    ${(tt.standingEntries||[]).length?`
+    <div style="font-size:12px;font-weight:600;color:#fbbf24;margin-bottom:8px">⏸ Standing Time Entries</div>
+    ${standingRows}`:`<div style="font-size:12px;color:#334155;font-style:italic">No standing time logged</div>`}
+  </div>`;
+
+  // ── Trips panel ──────────────────────────────────────────────────────────
+  const linkedJobs = jobs.filter(x=>x.tripId && x.tripId===j.tripId && x.id!==j.id);
+  const tripsHTML = `
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="card-title" style="margin:0">🔗 Installation Trip</div>
+      ${j.tripId?`<span style="font-size:11px;color:#64748b;font-family:monospace">${j.tripId}${j.isTripAnchor?' · anchor':''}</span>`:''}
+    </div>
+    ${j.tripId?`
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:8px">Linked jobs in this trip:</div>
+      ${linkedJobs.length?linkedJobs.map(x=>`
+        <div style="display:flex;align-items:center;gap:8px;background:#0c1a2a;border:1px solid #1e293b;border-radius:7px;padding:8px 12px;margin-bottom:6px">
+          <span style="font-family:monospace;font-size:12px;color:#38bdf8">${x.id}</span>
+          <span style="font-size:12px;color:#e2e8f0;flex:1">${x.location}</span>
+          ${x.isTripAnchor?'<span style="font-size:10px;background:#1a2e1a;color:#4ade80;padding:2px 7px;border-radius:4px;font-weight:700">ANCHOR</span>':''}
+          <button onclick="adminUnlinkTrip('${x.id}')" style="background:#2a0f0f;border:none;border-radius:5px;color:#f87171;font-size:11px;padding:3px 8px;cursor:pointer">Unlink</button>
+        </div>`).join(''):'<div style="font-size:12px;color:#334155;font-style:italic">No other jobs in this trip yet.</div>'}
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input id="trip-link-id-${j.id}" class="form-input" placeholder="Job ID to link…" style="flex:1;font-size:12px;padding:6px 10px"/>
+        <button onclick="adminLinkTrip('${j.id}')" style="background:#0c2a3a;border:1px solid #38bdf8;border-radius:6px;padding:6px 14px;color:#38bdf8;font-size:12px;cursor:pointer;flex-shrink:0">+ Link Job</button>
+        <button onclick="adminUnlinkTrip('${j.id}')" style="background:#2a0f0f;border:1px solid #f8717140;border-radius:6px;padding:6px 12px;color:#f87171;font-size:12px;cursor:pointer;flex-shrink:0">Remove from Trip</button>
+      </div>`:`
+      <div style="font-size:12px;color:#475569;margin-bottom:10px">Group this job with others that share travel cost (e.g. same truck, same day).</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="trip-link-id-${j.id}" class="form-input" placeholder="Job ID to group with…" style="flex:1;font-size:12px;padding:6px 10px"/>
+        <button onclick="adminLinkTrip('${j.id}')" style="background:#0c2a3a;border:1px solid #38bdf8;border-radius:6px;padding:6px 14px;color:#38bdf8;font-size:12px;cursor:pointer;flex-shrink:0">🔗 Create Trip</button>
+      </div>`}
+  </div>`;
+
+  // ── Quote panel ──────────────────────────────────────────────────────────
+  const q2 = j.quote || {};
+  const QUOTE_STATUSES = ['draft','sent','accepted','rejected'];
+  const QUOTE_STATUS_COLORS = {draft:'#64748b',sent:'#38bdf8',accepted:'#34d399',rejected:'#f87171'};
+  const quoteHTML = `
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="card-title" style="margin:0">📄 Quote</div>
+      ${q2.status?`<span style="font-size:12px;font-weight:700;color:${QUOTE_STATUS_COLORS[q2.status]||'#64748b'};text-transform:uppercase">${q2.status}</span>`:''}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-field">
+        <label class="form-label">Amount</label>
+        <input class="form-input" id="q-amount-${j.id}" type="number" min="0" step="0.01" value="${q2.amount||''}" placeholder="e.g. 1500.00" style="font-size:12px;padding:7px 10px"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Currency</label>
+        <input class="form-input" id="q-currency-${j.id}" value="${q2.currency||''}" placeholder="e.g. USD" style="font-size:12px;padding:7px 10px"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Status</label>
+        <select class="form-input" id="q-status-${j.id}" style="font-size:12px;padding:7px 10px">
+          ${QUOTE_STATUSES.map(s=>`<option value="${s}" ${q2.status===s?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-field" style="grid-column:1/-1">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="q-notes-${j.id}" rows="2" placeholder="Quote details or scope…" style="font-size:12px;padding:7px 10px;resize:vertical">${q2.notes||''}</textarea>
+      </div>
+    </div>
+    ${q2.createdAt?`<div style="font-size:11px;color:#475569;margin-top:8px">Created ${q2.createdAt}${q2.sentAt?' · Sent '+q2.sentAt:''}</div>`:''}
+    <button onclick="adminSaveQuote('${j.id}')" style="margin-top:10px;background:#1a2e1a;border:1px solid #34d399;border-radius:7px;padding:7px 16px;color:#86efac;font-size:12px;cursor:pointer">💾 Save Quote</button>
+    <span id="q-msg-${j.id}" style="font-size:12px;margin-left:10px"></span>
+  </div>`;
+
+  // ── Invoice panel ────────────────────────────────────────────────────────
+  const inv = j.invoice || {};
+  const INV_STATUSES = ['draft','sent','paid'];
+  const INV_STATUS_COLORS = {draft:'#64748b',sent:'#38bdf8',paid:'#34d399'};
+  const invoiceHTML = `
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="card-title" style="margin:0">🧾 Invoice</div>
+      ${inv.status?`<span style="font-size:12px;font-weight:700;color:${INV_STATUS_COLORS[inv.status]||'#64748b'};text-transform:uppercase">${inv.status}${inv.paidAt?' · '+inv.paidAt:''}</span>`:''}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="form-field">
+        <label class="form-label">Invoice No.</label>
+        <input class="form-input" id="inv-no-${j.id}" value="${inv.invoiceNo||''}" placeholder="e.g. INV-001" style="font-size:12px;padding:7px 10px"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Amount</label>
+        <input class="form-input" id="inv-amount-${j.id}" type="number" min="0" step="0.01" value="${inv.amount||''}" placeholder="e.g. 1500.00" style="font-size:12px;padding:7px 10px"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Currency</label>
+        <input class="form-input" id="inv-currency-${j.id}" value="${inv.currency||''}" placeholder="e.g. USD" style="font-size:12px;padding:7px 10px"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Status</label>
+        <select class="form-input" id="inv-status-${j.id}" style="font-size:12px;padding:7px 10px">
+          ${INV_STATUSES.map(s=>`<option value="${s}" ${inv.status===s?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-field" style="grid-column:1/-1">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="inv-notes-${j.id}" rows="2" placeholder="Invoice details…" style="font-size:12px;padding:7px 10px;resize:vertical">${inv.notes||''}</textarea>
+      </div>
+    </div>
+    ${inv.createdAt?`<div style="font-size:11px;color:#475569;margin-top:8px">Created ${inv.createdAt}${inv.paidAt?' · Paid '+inv.paidAt:''}</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <button onclick="adminSaveInvoice('${j.id}')" style="background:#1a2e1a;border:1px solid #34d399;border-radius:7px;padding:7px 16px;color:#86efac;font-size:12px;cursor:pointer">💾 Save Invoice</button>
+      ${inv.status!=='paid'?`<button onclick="adminMarkPaid('${j.id}')" style="background:#451a00;border:1px solid #fbbf24;border-radius:7px;padding:7px 16px;color:#fbbf24;font-size:12px;cursor:pointer">✓ Mark Paid</button>`:''}
+      <span id="inv-msg-${j.id}" style="font-size:12px;align-self:center"></span>
+    </div>
+  </div>`;
+
+  // ── Chat panel ───────────────────────────────────────────────────────────
+  const chatHTML = `
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-title">💬 Job Chat</div>
+    <div id="chat-msgs-${j.id}" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:4px 0">
+      <div style="font-size:12px;color:#334155;text-align:center">Loading…</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <input id="chat-input-${j.id}" class="form-input" placeholder="Type a message…" style="flex:1;font-size:13px"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${j.id}')}"/>
+      <button onclick="chatSend('${j.id}')" style="background:#0c2a3a;border:1px solid #38bdf8;border-radius:8px;padding:8px 16px;color:#38bdf8;font-size:13px;cursor:pointer;flex-shrink:0">Send</button>
+    </div>
+  </div>`;
+
+  // ── Job card download ────────────────────────────────────────────────────
+  const jobCardHTML = `
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+    <a href="${capi('/jobs/'+j.id+'/job-card?token='+(getAuth()?.token||''))}" target="_blank"
+      style="display:inline-flex;align-items:center;gap:6px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:7px 16px;color:#94a3b8;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
+      📄 Download Job Card (PDF)
+    </a>
+    <a href="${capi('/export/jobs.csv?token='+(getAuth()?.token||''))}" target="_blank"
+      style="display:inline-flex;align-items:center;gap:6px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:7px 16px;color:#94a3b8;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
+      📊 Export All Jobs CSV
+    </a>
+  </div>`;
+
   document.getElementById('modal-job-content').innerHTML=`
     ${adminProblemBanner}
     ${j.needsAssignment && !j.technician ? `
@@ -875,9 +1082,17 @@ function renderModalContent(id){
       👤 Assigned to <b style="color:#f1f5f9">${j.clientName||j.clientCompanyName||'—'}</b> &nbsp;·&nbsp; 🔧 ${j.technician||'TBC'} &nbsp;·&nbsp; 🌍 ${j.country||''}
     </div>
     <div style="margin-bottom:14px">${getJobBadge(j)}</div>
+    ${jobCardHTML}
     ${renderActivityLog(j)}
     ${editHTML}
-    ${checklistHTML}${notesHTML}`;
+    ${timeTrackingHTML}
+    ${tripsHTML}
+    ${quoteHTML}
+    ${invoiceHTML}
+    ${checklistHTML}${notesHTML}
+    ${chatHTML}`;
+
+  setTimeout(()=>chatLoad(j.id),50);
 }
 
 
@@ -1773,6 +1988,232 @@ async function adminResolveProblem(jobId) {
   if (!data.ok) { alert(data.error||'Error'); return; }
   loadAll();
   closeDetail();
+}
+
+// ── Phase 2: Standing time approval ──────────────────────────────────────────
+async function adminApproveStanding(jobId, entryId, status) {
+  // Find the fault select for this specific entry (entryId is a hex string like "a1b2c3d4")
+  // The select id is set as fault-{jobId}-{entryIndex}, so we scan and match by entry order
+  const j = jobs.find(x=>x.id===jobId);
+  const entryIndex = (j?.timeTracking?.standingEntries||[]).findIndex(e=>e.id===entryId);
+  const faultEl = entryIndex>=0 ? document.getElementById('fault-'+jobId+'-'+entryIndex) : null;
+  const faultType = faultEl?.value || '';
+  const res = await apiFetch(capi('/jobs/'+jobId+'/standing/'+entryId), {
+    method:'PUT', body:JSON.stringify({status, faultType})
+  });
+  const data = await res.json();
+  if (!data.ok) { alert(data.error||'Error'); return; }
+  const jobRes = await apiFetch(capi('/jobs/'+jobId));
+  const updated = await jobRes.json();
+  const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+  renderModalContent(jobId);
+}
+
+// ── Phase 2: Trip management ──────────────────────────────────────────────────
+async function adminLinkTrip(jobId) {
+  const other = document.getElementById('trip-link-id-'+jobId)?.value.trim();
+  if (!other) { alert('Enter a Job ID to link'); return; }
+  // Use the anchor job's existing tripId if it has one, otherwise create new
+  const anchor = jobs.find(x=>x.id===jobId);
+  const existingTripId = anchor?.tripId || null;
+  const res  = await apiFetch(capi('/trips'), { method:'POST', body:JSON.stringify({
+    jobIds: [jobId, other],
+    anchorJobId: jobId,
+    tripId: existingTripId
+  })});
+  const data = await res.json();
+  if (!data.ok) { alert(data.error||'Error'); return; }
+  const jobRes = await apiFetch(capi('/jobs'));
+  jobs = await jobRes.json();
+  renderModalContent(jobId);
+}
+async function adminUnlinkTrip(jobId) {
+  if (!confirm('Remove this job from the trip?')) return;
+  const res  = await apiFetch(capi('/jobs/'+jobId+'/trip'), { method:'DELETE' });
+  const data = await res.json();
+  if (!data.ok) { alert(data.error||'Error'); return; }
+  const jobRes = await apiFetch(capi('/jobs'));
+  jobs = await jobRes.json();
+  renderModalContent(currentJobId||jobId);
+}
+
+// ── Phase 3: Quote ────────────────────────────────────────────────────────────
+async function adminSaveQuote(jobId) {
+  const amount   = parseFloat(document.getElementById('q-amount-'+jobId)?.value)||0;
+  const currency = document.getElementById('q-currency-'+jobId)?.value.trim()||'USD';
+  const status   = document.getElementById('q-status-'+jobId)?.value||'draft';
+  const notes    = document.getElementById('q-notes-'+jobId)?.value.trim()||'';
+  const res  = await apiFetch(capi('/jobs/'+jobId+'/quote'), { method:'PUT', body:JSON.stringify({amount,currency,status,notes}) });
+  const data = await res.json();
+  const msgEl = document.getElementById('q-msg-'+jobId);
+  if (data.ok) {
+    const jobRes = await apiFetch(capi('/jobs/'+jobId));
+    const updated = await jobRes.json();
+    const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+    if (msgEl) { msgEl.style.color='#34d399'; msgEl.textContent='Saved!'; setTimeout(()=>msgEl.textContent='',2000); }
+    renderModalContent(jobId);
+  } else if (msgEl) { msgEl.style.color='#f87171'; msgEl.textContent=data.error||'Error'; }
+}
+
+// ── Phase 3: Invoice ──────────────────────────────────────────────────────────
+async function adminSaveInvoice(jobId) {
+  const invoiceNo = document.getElementById('inv-no-'+jobId)?.value.trim()||'';
+  const amount    = parseFloat(document.getElementById('inv-amount-'+jobId)?.value)||0;
+  const currency  = document.getElementById('inv-currency-'+jobId)?.value.trim()||'USD';
+  const status    = document.getElementById('inv-status-'+jobId)?.value||'draft';
+  const notes     = document.getElementById('inv-notes-'+jobId)?.value.trim()||'';
+  const res  = await apiFetch(capi('/jobs/'+jobId+'/invoice'), { method:'PUT', body:JSON.stringify({invoiceNo,amount,currency,status,notes}) });
+  const data = await res.json();
+  const msgEl = document.getElementById('inv-msg-'+jobId);
+  if (data.ok) {
+    const jobRes = await apiFetch(capi('/jobs/'+jobId));
+    const updated = await jobRes.json();
+    const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+    if (msgEl) { msgEl.style.color='#34d399'; msgEl.textContent='Saved!'; setTimeout(()=>msgEl.textContent='',2000); }
+    renderModalContent(jobId);
+  } else if (msgEl) { msgEl.style.color='#f87171'; msgEl.textContent=data.error||'Error'; }
+}
+async function adminMarkPaid(jobId) {
+  const res  = await apiFetch(capi('/jobs/'+jobId+'/invoice'), { method:'PUT', body:JSON.stringify({status:'paid', paidAt:new Date().toISOString().slice(0,10)}) });
+  const data = await res.json();
+  if (data.ok) {
+    const jobRes = await apiFetch(capi('/jobs/'+jobId));
+    const updated = await jobRes.json();
+    const idx = jobs.findIndex(j=>j.id===jobId); if(idx>=0) jobs[idx]=updated;
+    renderModalContent(jobId);
+  } else alert(data.error||'Error');
+}
+
+// ── Phase 3: Financial dashboard ─────────────────────────────────────────────
+async function loadFinancial() {
+  const el = document.getElementById('financial-content');
+  if (!el) return;
+  el.innerHTML = '<div style="color:#475569;font-size:13px;padding:40px 0;text-align:center">Loading financial data…</div>';
+  try {
+    const res  = await apiFetch(capi('/financial-summary'));
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error||'Error');
+    const s = data.summary;
+    // Convert monthly object {month: revenue} to sorted array
+    const monthlyObj = data.monthly || {};
+    const months = Object.entries(monthlyObj)
+      .sort(([a],[b])=>a.localeCompare(b))
+      .slice(-12)
+      .map(([month,revenue])=>({month:month.slice(5),revenue})); // show MM only
+
+    // Build monthly bar chart (simple CSS bars)
+    const maxRev = Math.max(...months.map(m=>m.revenue), 1);
+    const barChart = months.length ? `
+      <div style="background:#0a1220;border:1px solid #1e293b;border-radius:12px;padding:20px;margin-bottom:20px">
+        <div style="font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:16px">📈 Monthly Revenue (Paid Invoices)</div>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:120px;padding-bottom:24px;position:relative">
+          ${months.map(m=>{
+            const pct = m.revenue/maxRev*100;
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+              <div style="font-size:10px;color:#38bdf8;font-weight:600">${m.revenue>0?m.revenue.toLocaleString():''}</div>
+              <div style="flex:1;width:100%;display:flex;align-items:flex-end">
+                <div style="width:100%;background:#38bdf8;border-radius:4px 4px 0 0;height:${Math.max(pct,2)}%;min-height:3px;opacity:.85"></div>
+              </div>
+              <div style="font-size:9px;color:#475569;white-space:nowrap">${m.month}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+
+    el.innerHTML = `
+      <!-- Summary stats -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px">
+        ${[
+          {label:'Total Jobs',       value:s.totalJobs,                color:'#94a3b8'},
+          {label:'Completed',        value:s.completed||0,             color:'#34d399'},
+          {label:'Quotes Pending',   value:s.quotesPending||0,         color:'#38bdf8'},
+          {label:'Invoiced',         value:s.invoiced||0,              color:'#a78bfa'},
+          {label:'Paid',             value:s.paid||0,                  color:'#fbbf24'},
+          {label:'Total Revenue',    value:(s.revenue||0).toLocaleString(), color:'#4ade80'},
+          {label:'Outstanding',      value:(s.outstanding||0).toLocaleString(), color:'#f87171'},
+        ].map(x=>`<div class="stat-card"><div class="stat-value" style="color:${x.color};font-size:20px">${x.value}</div><div class="stat-label">${x.label}</div></div>`).join('')}
+      </div>
+      ${barChart}
+      <!-- Export button -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+        <a href="${capi('/export/jobs.csv?token='+(getAuth()?.token||''))}" target="_blank"
+          style="display:inline-flex;align-items:center;gap:6px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:8px 18px;color:#94a3b8;font-size:13px;font-weight:600;text-decoration:none">
+          📊 Export All Jobs CSV
+        </a>
+      </div>
+      <!-- Jobs with invoices table (built from cached jobs) -->
+      ${(()=>{
+        const invoiceJobs = jobs.filter(j=>j.invoice);
+        if (!invoiceJobs.length) return '<div style="color:#334155;font-size:13px;padding:20px 0">No invoices created yet. Open a job and add a quote/invoice to get started.</div>';
+        return `<div style="background:#0a1220;border:1px solid #1e293b;border-radius:12px;overflow:hidden">
+          <div style="padding:16px 20px;border-bottom:1px solid #1e293b;font-size:14px;font-weight:700;color:#f1f5f9">🧾 Invoice Tracker</div>
+          <div style="overflow-x:auto">
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="background:#0d1829">
+                  <th style="padding:8px 12px;font-size:11px;color:#475569;text-align:left;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Job</th>
+                  <th style="padding:8px 12px;font-size:11px;color:#475569;text-align:left;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Client</th>
+                  <th style="padding:8px 12px;font-size:11px;color:#475569;text-align:left;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Invoice No</th>
+                  <th style="padding:8px 12px;font-size:11px;color:#475569;text-align:right;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Amount</th>
+                  <th style="padding:8px 12px;font-size:11px;color:#475569;text-align:left;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoiceJobs.map(j=>{
+                  const inv = j.invoice||{};
+                  const sc = {draft:'#64748b',sent:'#38bdf8',paid:'#34d399'}[inv.status]||'#64748b';
+                  return `<tr style="border-bottom:1px solid #1e293b;cursor:pointer" onclick="setMainTab('jobs',document.querySelector('[data-tab=jobs]'));setTimeout(()=>openDetail('${j.id}'),50)">
+                    <td style="padding:8px 12px;font-family:monospace;font-size:12px;color:#38bdf8">${j.id}</td>
+                    <td style="padding:8px 12px;font-size:12px;color:#e2e8f0">${j.clientCompanyName||j.clientName||'—'}</td>
+                    <td style="padding:8px 12px;font-size:12px;color:#94a3b8">${inv.invoiceNo||'—'}</td>
+                    <td style="padding:8px 12px;font-size:12px;color:#f1f5f9;text-align:right">${inv.currency||''} ${(inv.amount||0).toLocaleString()}</td>
+                    <td style="padding:8px 12px"><span style="font-size:11px;font-weight:700;color:${sc};text-transform:uppercase">${inv.status||'—'}</span></td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+      })()}`;
+  } catch(e) {
+    el.innerHTML = `<div style="color:#f87171;font-size:13px;padding:20px">Error loading financial data: ${e.message}</div>`;
+  }
+}
+
+// ── Phase 4: Chat ─────────────────────────────────────────────────────────────
+async function chatLoad(jobId) {
+  const el = document.getElementById('chat-msgs-'+jobId);
+  if (!el) return;
+  try {
+    const res  = await apiFetch(capi('/jobs/'+jobId+'/chat'));
+    const msgs = await res.json();
+    if (!Array.isArray(msgs)||!msgs.length) {
+      el.innerHTML = '<div style="font-size:12px;color:#334155;text-align:center;padding:8px">No messages yet. Start the conversation.</div>';
+      return;
+    }
+    const me = getAuth()?.username||'';
+    el.innerHTML = msgs.map(m=>{
+      const isMe = m.from===me;
+      const bubbleColor = m.fromRole==='admin'?'#0c2a3a':m.fromRole==='installer'?'#1e1130':'#0a2a1e';
+      const borderColor = m.fromRole==='admin'?'#38bdf8':m.fromRole==='installer'?'#a78bfa':'#34d399';
+      const nameColor   = m.fromRole==='admin'?'#38bdf8':m.fromRole==='installer'?'#a78bfa':'#34d399';
+      return `<div style="display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};gap:2px">
+        <div style="font-size:10px;color:#475569">${m.fromName||m.from} · ${m.at||''}</div>
+        <div style="background:${bubbleColor};border:1px solid ${borderColor}30;border-radius:10px;padding:8px 12px;max-width:80%;font-size:13px;color:#e2e8f0;word-break:break-word">${m.message}</div>
+      </div>`;
+    }).join('');
+    el.scrollTop = el.scrollHeight;
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:12px;color:#f87171">Could not load chat.</div>';
+  }
+}
+async function chatSend(jobId) {
+  const input = document.getElementById('chat-input-'+jobId);
+  const message = input?.value.trim();
+  if (!message) return;
+  input.value = '';
+  await apiFetch(capi('/jobs/'+jobId+'/chat'), { method:'POST', body:JSON.stringify({message}) });
+  chatLoad(jobId);
 }
 
 function openAddRecord() {

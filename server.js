@@ -192,10 +192,14 @@ const upload = multer({
 });
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
+function extractToken(req) {
+  const auth = req.headers['authorization'] || '';
+  return auth.replace('Bearer ','').trim() || req.query.token || '';
+}
+
 function requireAuth(role) {
   return (req, res, next) => {
-    const auth  = req.headers['authorization'] || '';
-    const token = auth.replace('Bearer ','').trim();
+    const token = extractToken(req);
     const user  = getUserByToken(token);
     if (!user) return res.status(401).json({ error:'Not logged in' });
     if (role && user.role !== role && user.role !== 'hq')
@@ -207,8 +211,7 @@ function requireAuth(role) {
 
 function requireCompanyAuth(role) {
   return (req, res, next) => {
-    const auth  = req.headers['authorization'] || '';
-    const token = auth.replace('Bearer ','').trim();
+    const token = extractToken(req);
     const user  = getUserByToken(token);
     if (!user) return res.status(401).json({ error:'Not logged in' });
     // HQ can access any company
@@ -1011,6 +1014,97 @@ app.delete('/api/:companyId/jobs/:id', requireCompanyAuth('admin'), (req, res) =
   res.json({ ok:true });
 });
 
+// ── PHASE 2 — TIME TRACKING ───────────────────────────────────────────────────
+
+// Installer logs a time event (travel_start, travel_end, install_start, install_end)
+app.post('/api/:companyId/jobs/:id/time-log', requireCompanyAuth(), (req, res) => {
+  const { event } = req.body;
+  const allowed = ['travel_start','travel_end','install_start','install_end'];
+  if (!allowed.includes(event)) return res.json({ ok:false, error:'Invalid event' });
+  const now = new Date().toISOString();
+  const job = jobAction(req.params.companyId, req.params.id, j => {
+    if (!j.timeTracking) j.timeTracking = {};
+    if (event==='travel_start')  j.timeTracking.travelStart  = now;
+    if (event==='travel_end')    j.timeTracking.travelEnd    = now;
+    if (event==='install_start') j.timeTracking.installStart = now;
+    if (event==='install_end')   j.timeTracking.installEnd   = now;
+    addActivity(j, req.user.name, req.user.role, `⏱ ${event.replace('_',' ')}`, new Date(now).toLocaleTimeString());
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  broadcast(req.params.companyId, { type:'refresh' });
+  res.json({ ok:true });
+});
+
+// Installer logs standing time (delay/waiting with reason + duration)
+app.post('/api/:companyId/jobs/:id/standing', requireCompanyAuth(), (req, res) => {
+  const { reason, durationMinutes } = req.body;
+  if (!reason) return res.json({ ok:false, error:'Reason required' });
+  const cid = req.params.companyId;
+  const job = jobAction(cid, req.params.id, j => {
+    if (!j.timeTracking) j.timeTracking = {};
+    if (!j.timeTracking.standingEntries) j.timeTracking.standingEntries = [];
+    j.timeTracking.standingEntries.push({
+      id: crypto.randomBytes(8).toString('hex'),
+      reason, durationMinutes: parseInt(durationMinutes)||0,
+      loggedBy: req.user.name, loggedAt: new Date().toISOString(),
+      adminStatus: 'pending', fault: null, adminNote: ''
+    });
+    addActivity(j, req.user.name, req.user.role, '⏸ Standing time logged', `${durationMinutes||'?'}min — ${reason}`);
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  broadcast(cid, { type:'refresh' });
+  res.json({ ok:true });
+});
+
+// Admin reviews a standing time entry
+app.put('/api/:companyId/jobs/:id/standing/:entryId', requireCompanyAuth('admin'), (req, res) => {
+  const status    = req.body.status    || req.body.adminStatus || 'pending';
+  const faultType = req.body.faultType || req.body.fault       || null;
+  const adminNote = req.body.adminNote || '';
+  const job = jobAction(req.params.companyId, req.params.id, j => {
+    const entry = (j.timeTracking?.standingEntries||[]).find(e=>e.id===req.params.entryId);
+    if (entry) {
+      entry.adminStatus = status;
+      entry.status      = status;
+      entry.faultType   = faultType;
+      entry.adminNote   = adminNote;
+      entry.reviewedAt  = new Date().toISOString();
+      entry.reviewedBy  = req.user.name;
+      addActivity(j, req.user.name, 'admin', `Standing time ${status}`, faultType ? `Fault: ${faultType}` : '');
+    }
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  res.json({ ok:true });
+});
+
+// ── PHASE 2 — INSTALLATION TRIPS ─────────────────────────────────────────────
+
+// Create/update a trip — links jobs together, one absorbs travel cost
+app.post('/api/:companyId/trips', requireCompanyAuth('admin'), (req, res) => {
+  const { jobIds, anchorJobId, tripId } = req.body;
+  if (!jobIds?.length) return res.json({ ok:false, error:'No jobs specified' });
+  const cid = req.params.companyId;
+  const tid  = tripId || ('TRIP-'+String(Date.now()).slice(-6));
+  const jobs = getCompanyJobs(cid);
+  jobIds.forEach(jid => {
+    const j = jobs.find(x=>x.id===jid);
+    if (j) { j.tripId = tid; j.isTripAnchor = (jid===anchorJobId); }
+  });
+  saveCompanyJobs(cid, jobs);
+  broadcast(cid, { type:'refresh' });
+  res.json({ ok:true, tripId: tid });
+});
+
+// Remove a job from its trip
+app.delete('/api/:companyId/jobs/:id/trip', requireCompanyAuth('admin'), (req, res) => {
+  const job = jobAction(req.params.companyId, req.params.id, j => {
+    j.tripId = null; j.isTripAnchor = false;
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  broadcast(req.params.companyId, { type:'refresh' });
+  res.json({ ok:true });
+});
+
 // Assign technician (when multiple installers in country)
 app.post('/api/:companyId/jobs/:id/assign', requireCompanyAuth('admin'), async (req, res) => {
   const cid  = req.params.companyId;
@@ -1531,6 +1625,111 @@ app.post('/api/:companyId/jobs/:id/accept', requireCompanyAuth('installer'), (re
   res.json({ ok:true });
 });
 
+// ── PHASE 3 — QUOTES & INVOICES ──────────────────────────────────────────────
+
+// Save/update quote on a job
+app.put('/api/:companyId/jobs/:id/quote', requireCompanyAuth('admin'), (req, res) => {
+  const { amount, currency, notes, status } = req.body;
+  const job = jobAction(req.params.companyId, req.params.id, j => {
+    if (!j.quote) j.quote = { createdAt: new Date().toISOString() };
+    if (amount   !== undefined) j.quote.amount   = parseFloat(amount)||0;
+    if (currency !== undefined) j.quote.currency = currency;
+    if (notes    !== undefined) j.quote.notes    = notes;
+    if (status   !== undefined) {
+      const prev = j.quote.status;
+      j.quote.status = status;
+      if (status==='sent'     && prev!=='sent')     j.quote.sentAt     = new Date().toISOString();
+      if (status==='accepted' && prev!=='accepted') j.quote.acceptedAt = new Date().toISOString();
+      if (status==='rejected' && prev!=='rejected') j.quote.rejectedAt = new Date().toISOString();
+      addActivity(j, req.user.name, 'admin', `Quote ${status}`, `${j.quote.currency||''}${j.quote.amount||0}`);
+    }
+    j.quote.updatedAt = new Date().toISOString();
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  res.json({ ok:true });
+});
+
+// Save/update invoice on a job
+app.put('/api/:companyId/jobs/:id/invoice', requireCompanyAuth('admin'), (req, res) => {
+  const { amount, currency, notes, status, invoiceNo } = req.body;
+  const job = jobAction(req.params.companyId, req.params.id, j => {
+    if (!j.invoice) j.invoice = { createdAt: new Date().toISOString() };
+    if (amount    !== undefined) j.invoice.amount    = parseFloat(amount)||0;
+    if (currency  !== undefined) j.invoice.currency  = currency;
+    if (notes     !== undefined) j.invoice.notes     = notes;
+    if (invoiceNo !== undefined) j.invoice.invoiceNo = invoiceNo;
+    if (status    !== undefined) {
+      const prev = j.invoice.status;
+      j.invoice.status = status;
+      if (status==='sent' && prev!=='sent') j.invoice.sentAt = new Date().toISOString();
+      if (status==='paid' && prev!=='paid') j.invoice.paidAt = new Date().toISOString();
+      addActivity(j, req.user.name, 'admin', `Invoice ${status}`, `${j.invoice.currency||''}${j.invoice.amount||0}`);
+    }
+    j.invoice.updatedAt = new Date().toISOString();
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  res.json({ ok:true });
+});
+
+// Financial summary for admin dashboard
+app.get('/api/:companyId/financial-summary', requireCompanyAuth('admin'), (req, res) => {
+  const jobs = getCompanyJobs(req.params.companyId);
+  const summary = { totalJobs:jobs.length, completed:0, invoiced:0, paid:0, outstanding:0, revenue:0, quotesPending:0 };
+  jobs.forEach(j => {
+    const st = computeStatus(j);
+    if (st==='Completed') summary.completed++;
+    if (j.invoice) {
+      const amt = j.invoice.amount||0;
+      if (j.invoice.status==='sent' || j.invoice.status==='paid') summary.invoiced++;
+      if (j.invoice.status==='paid') { summary.paid++; summary.revenue+=amt; }
+      if (j.invoice.status==='sent') summary.outstanding+=amt;
+    }
+    if (j.quote?.status==='sent') summary.quotesPending++;
+  });
+
+  // Monthly breakdown (last 12 months)
+  const monthly = {};
+  jobs.forEach(j => {
+    if (j.invoice?.status==='paid' && j.invoice.paidAt) {
+      const mo = j.invoice.paidAt.slice(0,7);
+      if (!monthly[mo]) monthly[mo] = 0;
+      monthly[mo] += j.invoice.amount||0;
+    }
+  });
+  res.json({ ok:true, summary, monthly });
+});
+
+// ── PHASE 4 — JOB CHAT ───────────────────────────────────────────────────────
+
+// Get chat messages for a job
+app.get('/api/:companyId/jobs/:id/chat', requireCompanyAuth(), (req, res) => {
+  const jobs = getCompanyJobs(req.params.companyId);
+  const job  = jobs.find(j=>j.id===req.params.id);
+  if (!job) return res.status(404).json({ error:'Not found' });
+  res.json(job.chat || []);
+});
+
+// Post a chat message
+app.post('/api/:companyId/jobs/:id/chat', requireCompanyAuth(), (req, res) => {
+  const { message } = req.body;
+  if (!message?.trim()) return res.json({ ok:false, error:'Message required' });
+  const cid = req.params.companyId;
+  const job = jobAction(cid, req.params.id, j => {
+    if (!j.chat) j.chat = [];
+    j.chat.push({
+      id:       crypto.randomBytes(8).toString('hex'),
+      from:     req.user.username,
+      fromName: req.user.name,
+      fromRole: req.user.role,
+      message:  message.trim(),
+      at:       new Date().toISOString()
+    });
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  broadcast(cid, { type:'chat', jobId: req.params.id });
+  res.json({ ok:true });
+});
+
 // ── MESSAGES (per company, stored in company dir) ─────────────────────────────
 function getMessages(cid) {
   return readJSON(companyFile(cid, 'messages.json'), []);
@@ -1772,6 +1971,161 @@ function getAdminEmail(cid) {
 function jobLink(html) {
   return html + `<p style="margin-top:16px"><a href="${BASE_URL}" style="background:#1e4d8c;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open Trifusion Portal →</a></p>`;
 }
+// ── PHASE 5 — JOB CARD DOWNLOAD ──────────────────────────────────────────────
+app.get('/api/:companyId/jobs/:id/job-card', requireCompanyAuth('admin'), (req, res) => {
+  const cid  = req.params.companyId;
+  const jobs = getCompanyJobs(cid);
+  const j    = jobs.find(x=>x.id===req.params.id);
+  if (!j) return res.status(404).send('Job not found');
+  const settings = getCompanySettings(cid);
+  const companyName = settings.companyName || cid;
+
+  function fmtTs(ts) { if(!ts) return '—'; return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+  function durMin(a,b) { if(!a||!b) return ''; const m=Math.round((new Date(b)-new Date(a))/60000); return m>=0?m+'m':''; }
+  const tt = j.timeTracking || {};
+
+  const checklistRows = (j.checklist||[]).map(sec=>`
+    <div style="margin-bottom:16px">
+      <div style="font-weight:700;font-size:13px;border-bottom:2px solid #1e293b;padding-bottom:4px;margin-bottom:8px">${sec.title}</div>
+      ${sec.steps.filter(s=>!s.skipped).map(s=>`
+        <div style="display:flex;gap:10px;padding:5px 0;border-bottom:1px solid #f1f5f9">
+          <span style="font-weight:700;color:${s.done?'#16a34a':'#dc2626'};flex-shrink:0">${s.done?'✓':'✗'}</span>
+          <span style="flex:1;font-size:12px">${s.label}</span>
+          ${s.noteText?`<span style="font-size:11px;color:#475569;font-style:italic">${s.noteText}</span>`:''}
+        </div>`).join('')}
+    </div>`).join('');
+
+  const standingRows = (tt.standingEntries||[]).map(e=>`
+    <tr>
+      <td style="padding:4px 8px;font-size:11px;border:1px solid #e2e8f0">${e.reason||''}</td>
+      <td style="padding:4px 8px;font-size:11px;border:1px solid #e2e8f0;text-align:center">${e.durationMinutes||0} min</td>
+      <td style="padding:4px 8px;font-size:11px;border:1px solid #e2e8f0;text-align:center;color:${e.adminStatus==='approved'?'#16a34a':e.adminStatus==='rejected'?'#dc2626':'#92400e'}">${e.adminStatus||'pending'}</td>
+      <td style="padding:4px 8px;font-size:11px;border:1px solid #e2e8f0">${e.faultType||'—'}</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<title>Job Card — ${j.id}</title>
+<style>
+  body{font-family:Arial,sans-serif;color:#111;background:#fff;padding:30px;max-width:800px;margin:0 auto}
+  h1{font-size:22px;margin-bottom:4px} h2{font-size:15px;color:#475569;margin:0 0 20px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-bottom:20px}
+  .field{font-size:12px} .field .label{color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.06em} .field .val{font-weight:600}
+  table{border-collapse:collapse;width:100%} th{background:#f1f5f9;padding:5px 8px;font-size:11px;text-align:left;border:1px solid #e2e8f0}
+  @media print{body{padding:0}}
+</style>
+</head>
+<body>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+  <div>
+    <h1>${companyName} — Job Card</h1>
+    <h2>${j.id} · ${j.location}</h2>
+  </div>
+  <div style="text-align:right;font-size:11px;color:#475569">
+    <div>Printed ${new Date().toLocaleDateString()}</div>
+    <div style="font-size:13px;font-weight:700;color:${j.clientConfirmed?'#16a34a':'#dc2626'}">${j.clientConfirmed?'COMPLETED':j.status||'—'}</div>
+  </div>
+</div>
+
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin-bottom:20px">
+  <div class="grid">
+    ${[
+      ['Job ID', j.id],
+      ['Date', j.date||'—'],
+      ['Time', j.time||'—'],
+      ['Location', j.location],
+      ['Country', j.country||'—'],
+      ['Vehicle', j.truck||'—'],
+      ['Client', j.clientCompanyName||j.clientName||'—'],
+      ['Technician', j.technician||'—'],
+      ['Service Type', j.serviceType||'—'],
+      ['Product', j.product||j.unitType||'—'],
+      ['Contact', j.contactName||'—'],
+      ['Contact No.', j.contactPhone||'—'],
+    ].map(([k,v])=>`<div class="field"><div class="label">${k}</div><div class="val">${v}</div></div>`).join('')}
+  </div>
+</div>
+
+${(tt.travelStart||tt.installStart)?`
+<div style="margin-bottom:20px">
+  <div style="font-weight:700;font-size:13px;margin-bottom:8px;border-bottom:2px solid #e2e8f0;padding-bottom:4px">⏱ Time Log</div>
+  <div class="grid">
+    <div class="field"><div class="label">Travel Start</div><div class="val">${fmtTs(tt.travelStart)}</div></div>
+    <div class="field"><div class="label">Travel End</div><div class="val">${fmtTs(tt.travelEnd)} ${tt.travelEnd?'('+durMin(tt.travelStart,tt.travelEnd)+')':''}</div></div>
+    <div class="field"><div class="label">Install Start</div><div class="val">${fmtTs(tt.installStart)}</div></div>
+    <div class="field"><div class="label">Install End</div><div class="val">${fmtTs(tt.installEnd)} ${tt.installEnd?'('+durMin(tt.installStart,tt.installEnd)+')':''}</div></div>
+  </div>
+  ${standingRows?`
+  <div style="margin-top:10px">
+    <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:6px">Standing Time</div>
+    <table><thead><tr>
+      <th>Reason</th><th>Duration</th><th>Status</th><th>Fault</th>
+    </tr></thead><tbody>${standingRows}</tbody></table>
+  </div>`:''}
+</div>`:''
+}
+
+<div style="margin-bottom:20px">
+  <div style="font-weight:700;font-size:13px;margin-bottom:12px;border-bottom:2px solid #e2e8f0;padding-bottom:4px">📋 Checklist</div>
+  ${checklistRows}
+</div>
+
+${j.notes&&j.notes.length?`
+<div style="margin-bottom:20px">
+  <div style="font-weight:700;font-size:13px;margin-bottom:8px;border-bottom:2px solid #e2e8f0;padding-bottom:4px">📝 Notes</div>
+  ${j.notes.map(n=>`<div style="font-size:12px;margin-bottom:6px"><span style="color:#64748b">${n.date} · ${n.by||'Admin'}:</span> ${n.text}</div>`).join('')}
+</div>`:''}
+
+<div style="margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:40px">
+  <div style="border-top:2px solid #111;padding-top:8px;font-size:12px">Client Signature &amp; Date</div>
+  <div style="border-top:2px solid #111;padding-top:8px;font-size:12px">Technician Signature &amp; Date</div>
+</div>
+
+<script>window.onload=()=>window.print()</script>
+</body>
+</html>`;
+
+  res.setHeader('Content-Type','text/html; charset=utf-8');
+  res.send(html);
+});
+
+// ── PHASE 6 — CSV EXPORT ─────────────────────────────────────────────────────
+app.get('/api/:companyId/export/jobs.csv', requireCompanyAuth('admin'), (req, res) => {
+  const cid  = req.params.companyId;
+  const jobs = getCompanyJobs(cid).map(j=>({...j, status:computeStatus(j)}));
+
+  const headers = ['ID','Date','Location','Country','Client','Technician','Category','Product','Service Type','Status','Truck','Contact Name','Contact Phone','Quote Amount','Quote Status','Invoice Amount','Invoice Status','Invoice No','Paid At','Travel Start','Travel End','Install Start','Install End','Created'];
+  const esc = v => {
+    if (v===null||v===undefined) return '';
+    const s = String(v);
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  const rows = jobs.map(j => [
+    j.id, j.date, j.location, j.country,
+    j.clientCompanyName||j.clientName||'',
+    j.technician||'',
+    j.jobCategory||'',
+    j.product||j.unitType||'',
+    j.installationType||j.serviceType||'',
+    j.status,
+    j.truck||'',
+    j.contactName||'',
+    j.contactPhone||'',
+    j.quote?.amount??'', j.quote?.status||'',
+    j.invoice?.amount??'', j.invoice?.status||'', j.invoice?.invoiceNo||'', j.invoice?.paidAt||'',
+    j.timeTracking?.travelStart||'', j.timeTracking?.travelEnd||'',
+    j.timeTracking?.installStart||'', j.timeTracking?.installEnd||'',
+    j.startDate||''
+  ].map(esc).join(','));
+
+  const csv = [headers.join(','), ...rows].join('\r\n');
+  res.setHeader('Content-Type','text/csv');
+  res.setHeader('Content-Disposition',`attachment; filename="${cid}-jobs-${new Date().toISOString().slice(0,10)}.csv"`);
+  res.send(csv);
+});
+
 // ── PAGE ROUTES ───────────────────────────────────────────────────────────────
 app.get('/',         (req,res) => res.sendFile(path.join(PUBLIC_DIR,'login.html')));
 app.get('/signup',   (req,res) => res.sendFile(path.join(PUBLIC_DIR,'signup','index.html')));
