@@ -1,7 +1,7 @@
 {
-  "admin": {
-    "username": "admin",
-    "password": "admin123",
+  "trifusionadmin": {
+    "username": "trifusionadmin",
+    "password": "3Zg3GjS&qmXuixm",
     "role": "admin",
     "name": "Zander",
     "companyId": "trifusion",
@@ -10,7 +10,7 @@
   },
   "david": {
     "username": "david",
-    "password": "korridor123",
+    "password": "tg3nRN*iG3",
     "role": "client",
     "name": "David",
     "clientId": "david",
@@ -21,7 +21,7 @@
   },
   "natan": {
     "username": "natan",
-    "password": "korridor456",
+    "password": "jK85Mv%b7s",
     "role": "client",
     "name": "Natan",
     "clientId": "natan",
@@ -32,26 +32,24 @@
   },
   "brigade": {
     "username": "brigade",
-    "password": "brigade123",
+    "password": "$w8Dy5*f&h",
     "role": "installer",
-    "name": "Brigade",
-    "installer": "Brigade",
-    "countries": [
-      "South Africa"
-    ],
+    "name": "Riaan",
+    "installer": "Riaan",
+    "companyName": "Brigade",
+    "countries": ["South Africa"],
     "companyId": "trifusion",
     "email": "",
     "createdAt": "2025-01-01"
   },
   "zamaka": {
     "username": "zamaka",
-    "password": "zamaka123",
+    "password": "%fKUV5MmBV",
     "role": "installer",
-    "name": "Zamaka",
-    "installer": "Zamaka",
-    "countries": [
-      "Zambia"
-    ],
+    "name": "Cosmos",
+    "installer": "Cosmos",
+    "companyName": "Zamaka",
+    "countries": ["Zambia"],
     "companyId": "trifusion",
     "email": "",
     "createdAt": "2025-01-01"

@@ -1,0 +1,80 @@
+{
+  "ftadmin": {
+    "username": "ftadmin",
+    "password": "123",
+    "role": "admin",
+    "name": "Alex Mercer",
+    "companyId": "fleettrack",
+    "email": "",
+    "createdAt": "2025-01-01"
+  },
+  "sarahk": {
+    "username": "sarahk",
+    "password": "123",
+    "role": "client",
+    "name": "Sarah Kruger",
+    "clientId": "sarahk",
+    "companyName": "Rapid Logistics",
+    "companyId": "fleettrack",
+    "email": "",
+    "createdAt": "2025-01-01"
+  },
+  "mikeb": {
+    "username": "mikeb",
+    "password": "123",
+    "role": "client",
+    "name": "Mike Botha",
+    "clientId": "mikeb",
+    "companyName": "TransAfrica",
+    "companyId": "fleettrack",
+    "email": "",
+    "createdAt": "2025-01-01"
+  },
+  "lunab": {
+    "username": "lunab",
+    "password": "123",
+    "role": "client",
+    "name": "Luna Booysen",
+    "clientId": "lunab",
+    "companyName": "Cape Fleet Co",
+    "companyId": "fleettrack",
+    "email": "",
+    "createdAt": "2025-01-01"
+  },
+  "jakevdm": {
+    "username": "jakevdm",
+    "password": "123",
+    "role": "installer",
+    "name": "Jake van der Merwe",
+    "installer": "Jake van der Merwe",
+    "companyName": "South Africa Installers",
+    "countries": ["South Africa"],
+    "companyId": "fleettrack",
+    "email": "",
+    "createdAt": "2025-01-01"
+  },
+  "petros": {
+    "username": "petros",
+    "password": "123",
+    "role": "installer",
+    "name": "Petros Dlamini",
+    "installer": "Petros Dlamini",
+    "companyName": "Zambia Installers",
+    "countries": ["Zambia"],
+    "companyId": "fleettrack",
+    "email": "",
+    "createdAt": "2025-01-01"
+  },
+  "emeka": {
+    "username": "emeka",
+    "password": "123",
+    "role": "installer",
+    "name": "Emeka Osei",
+    "installer": "Emeka Osei",
+    "companyName": "Zimbabwe Installers",
+    "countries": ["Zimbabwe"],
+    "companyId": "fleettrack",
+    "email": "",
+    "createdAt": "2025-01-01"
+  }
+}

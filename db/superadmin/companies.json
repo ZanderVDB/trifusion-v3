@@ -5,5 +5,12 @@
     "adminName": "Zander",
     "status": "active",
     "createdAt": "2025-01-01"
+  },
+  {
+    "companyId": "fleettrack",
+    "companyName": "FleetTrack",
+    "adminName": "Alex Mercer",
+    "status": "active",
+    "createdAt": "2025-01-01"
   }
 ]
