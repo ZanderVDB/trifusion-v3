@@ -65,6 +65,9 @@
   .settings-tab:hover:not(.active){color:#94a3b8}
   .cat-btn{flex:1;padding:10px 8px;border-radius:10px;border:1.5px solid #334155;background:#0a1220;color:#64748b;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
   .cat-btn.active{border-color:#38bdf8;background:#0c1f33;color:#38bdf8}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .jdt-btn{background:transparent;border:none;color:#64748b;padding:6px 14px;cursor:pointer;border-bottom:2px solid transparent;font-size:12px;font-weight:600;transition:all .15s;white-space:nowrap}
+  .jdt-btn.active{color:#38bdf8;border-bottom-color:#38bdf8}
   .hide-mobile{display:inline}.show-mobile{display:none}.show-mobile{display:inline}.overview-cols{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}}
 
   /* ── MOBILE RESPONSIVE ─────────────────────────────────── */
@@ -172,11 +175,6 @@
     <div class="topbar-portal">Admin Portal</div>
   </div>
   <div class="topbar-spacer"></div>
-  <span id="msg-badge" style="display:none;cursor:pointer" onclick="setMainTab('messages',document.querySelector('[data-tab=messages]'))">
-    <span style="font-size:13px;color:#94a3b8">Messages</span>
-    <span class="badge-count" id="unread-count">0</span>
-  </span>
-  
   <button class="btn-secondary" onclick="openAddRecord()" style="font-size:13px;padding:7px 14px"><span class="hide-mobile">📋 Add Record</span><span class="show-mobile">📋</span></button>
   <button class="btn-primary" onclick="openNewJobModal()" style="font-size:13px;padding:7px 14px"><span class="hide-mobile">+ New Service</span><span class="show-mobile">+</span></button>
   <button class="btn-logout" onclick="tfLogout()">Sign Out</button>
@@ -185,14 +183,13 @@
 <div class="page-wide">
   <!-- Main tabs -->
   <div class="tabs" style="margin-bottom:20px">
-    <button class="tab-btn active" data-tab="overview" onclick="setMainTab('overview',this)">Overview</button>
-    <button class="tab-btn" data-tab="jobs" onclick="setMainTab('jobs',this)">All Jobs<span class="tab-count" id="tc-jobs">0</span></button>
-    <button class="tab-btn" data-tab="quotes" onclick="setMainTab('quotes',this)">Quotes</button>
-    <button class="tab-btn" data-tab="financial" onclick="setMainTab('financial',this)">💰 Financial</button>
-    <button class="tab-btn" data-tab="messages" onclick="setMainTab('messages',this)">Messages<span class="tab-count" id="tc-msgs">0</span></button>
-    <button class="tab-btn" data-tab="users" onclick="setMainTab('users',this)">Team</button>
-    <button class="tab-btn" data-tab="settings" onclick="setMainTab('settings',this)">Settings</button>
+    <button class="tab-btn active" data-tab="dashboard" onclick="setMainTab('dashboard',this)">Dashboard</button>
+    <button class="tab-btn" data-tab="jobs" onclick="setMainTab('jobs',this)">Jobs <span class="tab-count" id="tc-jobs">0</span></button>
+    <button class="tab-btn" data-tab="finances" onclick="setMainTab('finances',this)">Finances</button>
   </div>
+
+  <!-- FINANCES tab (new combined tab) -->
+  <div id="tab-finances" style="display:none"></div>
 
   <!-- OVERVIEW -->
   <div id="tab-overview">
@@ -295,7 +292,7 @@ function scheduleRefresh() {
   clearTimeout(_refreshTimer);
   _refreshTimer = setTimeout(() => { loadAll(); }, 300);
 }
-let jobs=[], currentJobId=null, mainTab='overview';
+let jobs=[], currentJobId=null, mainTab='dashboard', _jdTab='overview';
 let quotesData=[], quotesView='list', currentQuote=null, quoteJobGroups=[];
 const QSC={draft:'#64748b',sent:'#38bdf8',accepted:'#4ade80',rejected:'#f87171',invoiced:'#a78bfa',paid:'#34d399'};
 const QSB={draft:'#1e293b',sent:'#0c2a3a',accepted:'#0a2a1e',rejected:'#2a0f0f',invoiced:'#1e1130',paid:'#0a2a1e'};
@@ -354,7 +351,7 @@ function startSSE(){
   _sseInstance = es;
   let _sseConnected = false;
   es.onopen = () => { if (!_sseConnected) { _sseConnected=true; loadAll(); } };
-  es.onmessage = e=>{try{const d=JSON.parse(e.data);if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message')scheduleRefresh();}catch(ex){}};
+  es.onmessage = e=>{try{const d=JSON.parse(e.data);if(d.type==='refresh'||d.type==='job_update'||d.type==='new_message')scheduleRefresh();if(d.type==='chat'&&d.jobId){const chatEl=document.getElementById('chat-msgs-'+d.jobId);if(chatEl)chatLoad(d.jobId);}}catch(ex){}};
   es.onerror   = ()=>setTimeout(startSSE,3000);
 }
 
@@ -397,16 +394,19 @@ async function loadAll(){
   }
   if(mainTab==='jobs') renderJobsTab();
   if(mainTab==='messages') loadMessages();
-  if(mainTab==='quotes') { loadQuotes(); }
+  if(mainTab==='finances') loadFinances();
   checkUnread();
 }
 
 async function checkUnread(){
   const r=await apiFetch(capi('/messages/unread')).then(x=>x.json());
   const c=r.count;
-  document.getElementById('tc-msgs').textContent=c;
-  document.getElementById('unread-count').textContent=c;
-  document.getElementById('msg-badge').style.display=c>0?'flex':'none';
+  // Update sidebar unread badge
+  const sbu = document.getElementById('sidebar-unread');
+  if (sbu) {
+    sbu.textContent = c;
+    sbu.style.display = c>0 ? 'flex' : 'none';
+  }
 }
 
 async function markAllRead(){
@@ -415,19 +415,30 @@ async function markAllRead(){
   loadMessages();
 }
 
-function setMainTab(tab,el){
-  mainTab=tab;
-  document.querySelectorAll('.tab-btn[data-tab]').forEach(b=>b.classList.remove('active'));
-  if(el) el.classList.add('active');
-  ['overview','jobs','quotes','financial','messages','users','settings'].forEach(t=>{
-    const el=document.getElementById('tab-'+t); if(el) el.style.display=t===tab?'block':'none';
+function setMainTab(tab, el) {
+  mainTab = tab;
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  // 'dashboard' uses id tab-overview; 'settings' uses tab-settings; others use tab-{tab}
+  ['dashboard','jobs','finances','messages','settings'].forEach(t => {
+    const divId = t==='dashboard'?'tab-overview':(t==='settings'?'tab-settings':'tab-'+t);
+    const div = document.getElementById(divId);
+    if (div) div.style.display = t===tab?'block':'none';
   });
-  if(tab==='messages') loadMessages();
-  if(tab==='jobs') renderJobsTab();
-  if(tab==='users') loadUsers();
-  if(tab==='settings') loadSettings();
-  if(tab==='financial') loadFinancial();
-  if(tab==='quotes') loadQuotes();
+  // also hide old tabs that may still exist
+  ['tab-quotes','tab-financial','tab-users'].forEach(id => {
+    const d = document.getElementById(id); if(d) d.style.display='none';
+  });
+  // Update sidebar icon states
+  const sbm = document.getElementById('sidebar-messages-btn');
+  const sbs = document.getElementById('sidebar-settings-btn');
+  if (sbm) sbm.style.background = tab==='messages'?'#0c2a3a':'#0a1220';
+  if (sbs) sbs.style.background = tab==='settings'?'#1e293b':'#0a1220';
+  // Load content
+  if (tab==='jobs') renderJobsTab();
+  if (tab==='messages') loadMessages();
+  if (tab==='settings') loadSettings();
+  if (tab==='finances') loadFinances();
 }
 
 const STATUS_META = {
@@ -515,21 +526,27 @@ function renderOverview(){
     else if(j.status==='Waiting for Docs') reason='📄 Waiting for installer documents';
     else if(j.needsAssignment&&!j.technician) reason='⚠ Needs installer assigned';
     else if(!j.time) reason='🕐 No installation time set';
+    const chatDot=(j.chat&&j.chat.length&&j.chat[j.chat.length-1]?.fromRole!=='admin')
+      ?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#38bdf8;margin-left:6px;animation:pulse 2s infinite"></span>':'';
     return `<div class="job-card" onclick="openDetail('${j.id}')" style="${jobUrgencyStyle(j)}">
-      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}</div>
+      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${chatDot}${getJobBadge(j)}</div>
       <div style="font-size:12px;color:#fb923c">${reason}</div>
     </div>`;
   }).join(''):'<div style="color:#334155;font-size:13px;padding:20px 0">Nothing needs attention right now</div>';
 
   // Active jobs only on overview
   const overviewJobs = jobs.filter(j=>j.status!=='Completed'&&!j.truckUnavailable&&!j.problemReport&&j.rescheduleProposal?.status!=='pending'&&!j.needsAssignment);
-  document.getElementById('today-list').innerHTML = overviewJobs.length ? overviewJobs.map(j=>`
+  document.getElementById('today-list').innerHTML = overviewJobs.length ? overviewJobs.map(j=>{
+    const chatDot2=(j.chat&&j.chat.length&&j.chat[j.chat.length-1]?.fromRole!=='admin')
+      ?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#38bdf8;margin-left:6px;animation:pulse 2s infinite"></span>':'';
+    return `
     <div class="job-card" onclick="openDetail('${j.id}')">
-      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}</div>
+      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${chatDot2}${getJobBadge(j)}</div>
       <div class="job-meta"><span>👤 ${j.clientCompanyName||j.clientName||'—'}${j.clientName&&j.clientName!==j.clientCompanyName?' ('+j.clientName+')':''}</span><span>🔧 ${j.technician||'Unassigned'}</span><span>📅 ${j.date}${j.time?' '+j.time:''}</span><span>🚛 ${j.truck||'TBC'}</span>
       ${j.completionDate?`<span style="color:#64748b">✓ Done ${j.completionDate}</span>`:''}
       </div>
-    </div>`).join('') : '<div style="color:#334155;font-size:13px;padding:20px 0">No jobs yet</div>';
+    </div>`;
+  }).join('') : '<div style="color:#334155;font-size:13px;padding:20px 0">No jobs yet</div>';
 }
 
 function needsAttention(j) {
@@ -553,12 +570,14 @@ function renderJobsTab(){
   el.innerHTML=list.map(j=>{
     const prog=progressOf(j.checklist);
     const pct=prog.total?Math.round(prog.done/prog.total*100):0;
+    const chatDot=(j.chat&&j.chat.length&&j.chat[j.chat.length-1]?.fromRole!=='admin')
+      ?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#38bdf8;margin-left:6px;animation:pulse 2s infinite"></span>':'';
     return `<div class="job-card" onclick="openDetail('${j.id}')" style="${jobUrgencyStyle(j)}">
       <div class="job-card-top">
         <div class="job-card-left">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="job-id">${j.id}</span>
-            <span class="job-name">${j.name||j.location}</span>
+            <span class="job-name">${j.name||j.location}</span>${chatDot}
           </div>
           <div class="job-meta" style="margin-top:4px">
             <span>🚛 ${j.truck||'TBC'}</span>
@@ -584,14 +603,49 @@ async function loadMessages(){
     const res  = await apiFetch(capi('/messages'));
     const msgs = await res.json();
     const el   = document.getElementById('msg-list');
-    if (!Array.isArray(msgs) || msgs.length === 0) {
+    // Build job chat items from cached jobs data
+    const chatItems = [];
+    jobs.forEach(j => {
+      if (j.chat && j.chat.length) {
+        j.chat.forEach(m => {
+          chatItems.push({
+            _isChatMsg: true,
+            jobId: j.id,
+            jobName: j.name || j.location,
+            from: m.fromName || m.from,
+            fromRole: m.fromRole,
+            message: m.message,
+            at: m.at
+          });
+        });
+      }
+    });
+    chatItems.sort((a,b)=>(b.at||'').localeCompare(a.at||''));
+    const recentChats = chatItems.slice(0,20);
+
+    if ((!Array.isArray(msgs) || msgs.length === 0) && !recentChats.length) {
       el.innerHTML = '<div style="padding:24px;color:#334155;font-size:13px">No messages yet</div>';
       return;
     }
-    // Add clear all button at top
-    el.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-      <button onclick="clearAllMessages()" style="background:#2a0f0f;border:1px solid #f8717140;border-radius:7px;padding:5px 12px;color:#f87171;font-size:12px;cursor:pointer">Clear All</button>
-    </div>` + msgs.map(m => `
+    const roleColor = {admin:'#38bdf8',installer:'#a78bfa',client:'#34d399'};
+    const chatSection = recentChats.length ? `
+      <div style="padding:10px 16px 6px;font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid #1e293b;background:#050b14">Job Chat Messages</div>
+      ${recentChats.map(m=>`
+        <div style="padding:10px 16px;border-bottom:1px solid #1e293b;cursor:pointer;transition:background .1s"
+          onmouseover="this.style.background='#0d1829'" onmouseout="this.style.background=''"
+          onclick="openDetail('${m.jobId}');setJobDetailTab('chat')">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:3px">
+            <span style="font-size:11px;font-weight:700;color:${roleColor[m.fromRole]||'#94a3b8'}">${m.fromRole||'?'}</span>
+            <span style="font-size:11px;color:#38bdf8;font-weight:600">→ ${m.jobId}</span>
+            <span style="font-size:11px;color:#334155;margin-left:auto">${m.at||''}</span>
+          </div>
+          <div style="font-size:12px;color:#94a3b8;margin-bottom:2px">${m.from} on <span style="color:#64748b">${m.jobName}</span></div>
+          <div style="font-size:13px;color:#cbd5e1">${m.message}</div>
+        </div>`).join('')}` : '';
+
+    const sysSection = Array.isArray(msgs) && msgs.length ? `
+      <div style="padding:10px 16px 6px;font-size:11px;color:#475569;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid #1e293b;background:#050b14">System Notifications</div>
+      ${msgs.map(m => `
       <div class="msg-item ${m.read?'':'unread'}"
         style="padding:12px 16px;border-bottom:1px solid #1e293b;cursor:${m.job_id?'pointer':'default'};transition:background .1s"
         onmouseover="this.style.background='#0d1829'" onmouseout="this.style.background=''"
@@ -603,12 +657,18 @@ async function loadMessages(){
           ${!m.read?'<span style="width:7px;height:7px;border-radius:50%;background:#38bdf8;flex-shrink:0"></span>':''}
         </div>
         <div style="font-size:13px;color:#cbd5e1">${m.body||''}</div>
-      </div>`).join('');
+      </div>`).join('')}` : '';
+
+    // Add clear all button at top
+    el.innerHTML = `<div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+      <button onclick="clearAllMessages()" style="background:#2a0f0f;border:1px solid #f8717140;border-radius:7px;padding:5px 12px;color:#f87171;font-size:12px;cursor:pointer">Clear All</button>
+    </div>
+    <div style="border:1px solid #1e293b;border-radius:10px;overflow:hidden">
+      ${chatSection}${sysSection}
+    </div>`;
     // Mark as read after viewing
     apiFetch(capi('/messages/read'), { method:'POST' }).catch(()=>{});
-    document.getElementById('unread-count').textContent = '0';
-    document.getElementById('msg-badge').style.display = 'none';
-    document.getElementById('tc-msgs').textContent = '0';
+    checkUnread();
   } catch(e) {
     document.getElementById('msg-list').innerHTML = '<div style="padding:24px;color:#f87171;font-size:13px">Error loading messages: '+e.message+'</div>';
   }
@@ -617,12 +677,24 @@ async function loadMessages(){
 // ── Job detail modal ──────────────────────────────────────────────────────────
 function openDetail(id){
   currentJobId=id;
+  _jdTab='overview'; // reset to overview on open
   document.getElementById('detail-modal').classList.add('open');
   renderModalContent(id);
   // Show force complete only for non-completed jobs
   const j = jobs.find(x=>x.id===id);
   const fcBtn = document.getElementById('force-complete-btn');
   if (fcBtn) fcBtn.style.display = (j && !j.clientConfirmed) ? 'block' : 'none';
+}
+
+function setJobDetailTab(tab) {
+  _jdTab = tab;
+  ['overview','edit','checklist','finances','chat'].forEach(t => {
+    const btn = document.getElementById('jdt-btn-'+t);
+    if (btn) btn.classList.toggle('active', t===tab);
+    const panel = document.getElementById('jdt-panel-'+t);
+    if (panel) panel.style.display = t===tab?'block':'none';
+  });
+  if (tab==='chat' && currentJobId) chatLoad(currentJobId);
 }
 function closeDetail(){
   window._editUnlocked = {};
@@ -982,14 +1054,14 @@ function renderModalContent(id){
   const quoteHTML = _jobQuote ? `
   <div style="background:#0c2a1a;border:1px solid #34d39940;border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
     <div style="font-size:13px;color:#34d399">📄 In Quote: <b>${_jobQuote.id}</b> &nbsp;·&nbsp; <span style="text-transform:capitalize">${_jobQuote.status}</span></div>
-    <button onclick="closeDetail();setMainTab('quotes',document.querySelector('[data-tab=quotes]'));setTimeout(()=>openQuoteBuilder('${_jobQuote.id}'),200)"
+    <button onclick="closeDetail();setMainTab('finances',document.querySelector('[data-tab=finances]'));setTimeout(()=>openQuoteBuilder('${_jobQuote.id}'),200)"
       style="background:#14532d;border:1px solid #34d399;border-radius:6px;padding:5px 14px;color:#86efac;font-size:12px;cursor:pointer">
       Open Quote →
     </button>
   </div>` : `
   <div style="background:#0a1220;border:1px dashed #1e293b;border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
     <div style="font-size:12px;color:#475569">Not yet in a quote</div>
-    <button onclick="closeDetail();setMainTab('quotes',document.querySelector('[data-tab=quotes]'));setTimeout(()=>openNewQuote(),200)"
+    <button onclick="closeDetail();setMainTab('finances',document.querySelector('[data-tab=finances]'));setTimeout(()=>openNewQuote(),200)"
       style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:5px 14px;color:#64748b;font-size:12px;cursor:pointer">
       + Create Quote
     </button>
@@ -1022,8 +1094,12 @@ function renderModalContent(id){
     </a>
   </div>`;
 
+  // Chat dot indicator for tab button
+  const hasChatUnread = j.chat&&j.chat.length&&j.chat[j.chat.length-1]?.fromRole!=='admin';
+  const chatTabDot = hasChatUnread ? '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#38bdf8;margin-left:5px;vertical-align:middle"></span>' : '';
+
   document.getElementById('modal-job-content').innerHTML=`
-    ${adminProblemBanner}
+    <!-- Assign banner (always shown if needed) -->
     ${j.needsAssignment && !j.technician ? `
     <div style="background:#1e1130;border:2px solid #c084fc;border-radius:12px;padding:14px 16px;margin-bottom:14px">
       <div style="font-weight:700;font-size:14px;color:#c084fc;margin-bottom:8px">⚠ No Installer Assigned</div>
@@ -1034,21 +1110,55 @@ function renderModalContent(id){
         </select>
         <button onclick="adminAssignInstaller('${j.id}')" class="btn-primary" style="font-size:13px;padding:8px 16px">Assign</button>
       </div>
-    </div>` : ''}${adminConfirmedBanner}
-    <div style="margin-bottom:12px;padding:8px 12px;background:#0c1a2a;border-radius:8px;font-size:12px;color:#64748b">
-      👤 Assigned to <b style="color:#f1f5f9">${j.clientName||j.clientCompanyName||'—'}</b> &nbsp;·&nbsp; 🔧 ${j.technician||'TBC'} &nbsp;·&nbsp; 🌍 ${j.country||''}
-    </div>
-    <div style="margin-bottom:14px">${getJobBadge(j)}</div>
-    ${jobCardHTML}
-    ${renderActivityLog(j)}
-    ${editHTML}
-    ${timeTrackingHTML}
-    ${tripsHTML}
-    ${quoteHTML}
-    ${checklistHTML}${notesHTML}
-    ${chatHTML}`;
+    </div>` : ''}
 
-  setTimeout(()=>chatLoad(j.id),50);
+    <!-- Internal sub-tab bar -->
+    <div style="display:flex;gap:0;border-bottom:1px solid #1e293b;margin-bottom:16px;overflow-x:auto">
+      <button id="jdt-btn-overview"  class="jdt-btn ${_jdTab==='overview' ?'active':''}" onclick="setJobDetailTab('overview')">Overview</button>
+      <button id="jdt-btn-edit"      class="jdt-btn ${_jdTab==='edit'     ?'active':''}" onclick="setJobDetailTab('edit')">Edit</button>
+      <button id="jdt-btn-checklist" class="jdt-btn ${_jdTab==='checklist'?'active':''}" onclick="setJobDetailTab('checklist')">Checklist</button>
+      <button id="jdt-btn-finances"  class="jdt-btn ${_jdTab==='finances' ?'active':''}" onclick="setJobDetailTab('finances')">Finances</button>
+      <button id="jdt-btn-chat"      class="jdt-btn ${_jdTab==='chat'     ?'active':''}" onclick="setJobDetailTab('chat')">Chat${chatTabDot}</button>
+    </div>
+
+    <!-- OVERVIEW PANEL -->
+    <div id="jdt-panel-overview" style="display:${_jdTab==='overview'?'block':'none'}">
+      ${adminConfirmedBanner}
+      ${adminProblemBanner}
+      <div style="margin-bottom:12px;padding:8px 12px;background:#0c1a2a;border-radius:8px;font-size:12px;color:#64748b">
+        👤 Assigned to <b style="color:#f1f5f9">${j.clientName||j.clientCompanyName||'—'}</b> &nbsp;·&nbsp; 🔧 ${j.technician||'TBC'} &nbsp;·&nbsp; 🌍 ${j.country||''}
+      </div>
+      <div style="margin-bottom:14px">${getJobBadge(j)}</div>
+      ${jobCardHTML}
+      ${_infoHTML}
+      ${renderActivityLog(j)}
+    </div>
+
+    <!-- EDIT PANEL -->
+    <div id="jdt-panel-edit" style="display:${_jdTab==='edit'?'block':'none'}">
+      ${editHTML}
+      ${notesHTML}
+    </div>
+
+    <!-- CHECKLIST PANEL -->
+    <div id="jdt-panel-checklist" style="display:${_jdTab==='checklist'?'block':'none'}">
+      ${checklistHTML}
+    </div>
+
+    <!-- FINANCES PANEL -->
+    <div id="jdt-panel-finances" style="display:${_jdTab==='finances'?'block':'none'}">
+      ${quoteHTML}
+      ${timeTrackingHTML}
+      ${tripsHTML}
+    </div>
+
+    <!-- CHAT PANEL -->
+    <div id="jdt-panel-chat" style="display:${_jdTab==='chat'?'block':'none'}">
+      ${chatHTML}
+    </div>`;
+
+  if (_jdTab==='chat') setTimeout(()=>chatLoad(j.id),50);
+  else if (_jdTab==='overview') setTimeout(()=>chatLoad(j.id),50); // preload for dot
 }
 
 
@@ -1103,9 +1213,7 @@ async function clearAllMessages() {
   if (!confirm('Clear all messages?')) return;
   await apiFetch(capi('/messages'), { method:'DELETE' });
   loadMessages();
-  document.getElementById('unread-count').textContent = '0';
-  document.getElementById('msg-badge').style.display = 'none';
-  document.getElementById('tc-msgs').textContent = '0';
+  checkUnread();
 }
 
 async function adminSaveNote(jobId) {
@@ -1388,20 +1496,36 @@ async function submitAdminJob() {
 
 
 // ── TEAM MANAGEMENT ──────────────────────────────────────────────────────────
+async function loadUsersInto(targetId) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.innerHTML = '<div style="color:#475569;font-size:13px;padding:20px 0">Loading team…</div>';
+  const res = await apiFetch(capi('/users'));
+  const users = await res.json();
+  const rows = Object.values(users).filter(u=>u.role!=='admin');
+  const clients   = rows.filter(u=>u.role==='client');
+  const installers= rows.filter(u=>u.role==='installer');
+  _renderUsersContent(target, clients, installers);
+}
+
 async function loadUsers() {
   const res = await apiFetch(capi('/users'));
   const users = await res.json();
   const rows = Object.values(users).filter(u=>u.role!=='admin');
   const clients   = rows.filter(u=>u.role==='client');
   const installers= rows.filter(u=>u.role==='installer');
+  _renderUsersContent(document.getElementById('users-content'), clients, installers);
+}
 
+function _renderUsersContent(el, clients, installers) {
+  if (!el) return;
+  // Need userCard defined in scope - call as inner function reference
   function userCard(u) {
     const isClient = u.role==='client';
     const color = isClient ? '#38bdf8' : '#a78bfa';
     const bg    = isClient ? '#0c2a3a' : '#1e1130';
     const detail= isClient ? (u.companyName||'No company') : ((u.countries||[]).join(', ')||'No countries');
     return `<div style="background:#0a1220;border:1px solid #1e293b;border-radius:10px;margin-bottom:8px;overflow:hidden">
-      <!-- Summary row -->
       <div style="padding:14px 16px;display:flex;align-items:center;gap:12px">
         <div style="width:36px;height:36px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;font-weight:700;color:${color};flex-shrink:0">${(u.companyName||u.name)[0].toUpperCase()}</div>
         <div style="flex:1;min-width:0">
@@ -1412,8 +1536,6 @@ async function loadUsers() {
         <button style="background:#1e293b;border:none;border-radius:6px;padding:5px 12px;color:#94a3b8;font-size:11px;cursor:pointer" onclick="toggleEditUser('${u.username}')">✏️ Edit</button>
         <button class="btn-danger" style="font-size:11px;padding:5px 10px" onclick="deleteUser('${u.username}','${u.name}')">✕</button>
       </div>
-
-      <!-- Read-only details panel (shown when expanded, before edit mode) -->
       <div id="view-${u.username}" style="display:none;padding:0 16px 14px;border-top:1px solid #1e293b">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
           ${[
@@ -1431,8 +1553,6 @@ async function loadUsers() {
         </div>
         <button class="btn-primary" style="font-size:12px;padding:7px 14px;margin-top:12px" onclick="switchToEdit('${u.username}')">✏️ Edit Details</button>
       </div>
-
-      <!-- Edit panel (hidden until Edit Details clicked) -->
       <div id="edit-${u.username}" style="display:none;padding:0 16px 16px;border-top:1px solid #1e293b">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">
           <div class="form-field">
@@ -1465,9 +1585,7 @@ async function loadUsers() {
       </div>
     </div>`;
   }
-
-
-  document.getElementById('users-content').innerHTML = `
+  el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <div>
         <div style="font-size:18px;font-weight:700;color:#f1f5f9">Team Members</div>
@@ -1515,7 +1633,7 @@ async function saveUser(username, role) {
   if (role==='installer') body.countries = countries;
   const res  = await apiFetch(capi('/users/'+username), { method:'PUT', body:JSON.stringify(body) });
   const data = await res.json();
-  if (data.ok) { msgEl.textContent='Saved!'; setTimeout(()=>{ msgEl.textContent=''; loadUsers(); },1200); }
+  if (data.ok) { msgEl.textContent='Saved!'; setTimeout(()=>{ msgEl.textContent=''; _refreshTeam(); },1200); }
   else { msgEl.style.color='#f87171'; msgEl.textContent=data.error||'Error'; }
 }
 
@@ -1551,13 +1669,22 @@ async function submitAddUser() {
   if (role==='installer' && (!countries||!countries.length)) { msgEl.textContent='At least one country is required for installers.'; return; }
   const res = await apiFetch(capi('/users'), { method:'POST', body:JSON.stringify({ role, name, username, password, email, companyName:company, countries }) });
   const data = await res.json();
-  if (data.ok) { closeAddUser(); loadUsers(); }
+  if (data.ok) { closeAddUser(); _refreshTeam(); }
   else { msgEl.textContent = data.error; }
 }
 async function deleteUser(username, name) {
   if (!confirm('Remove '+name+' from your team?')) return;
   await apiFetch(capi('/users/'+username), { method:'DELETE' });
-  loadUsers();
+  _refreshTeam();
+}
+
+function _refreshTeam() {
+  // Refresh the team panel that's currently visible
+  const teamContent = document.getElementById('stab-team-content');
+  if (teamContent && document.getElementById('stab-panel-team')?.style.display !== 'none') {
+    loadUsersInto('stab-team-content');
+  }
+  refreshCountryInstallerMap();
 }
 
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
@@ -1586,6 +1713,7 @@ async function loadSettings() {
       <!-- Sub-tab bar -->
       <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid #1e293b;padding-bottom:0">
         <button id="stab-account" class="settings-tab active" onclick="switchSettingsTab('account')">👤 Account</button>
+        <button id="stab-team" class="settings-tab" onclick="switchSettingsTab('team')">👥 Team</button>
         <button id="stab-pricing" class="settings-tab" onclick="switchSettingsTab('pricing')">💲 Products &amp; Pricing</button>
       </div>
 
@@ -1656,6 +1784,11 @@ async function loadSettings() {
           </div>
         </div>
       </div><!-- /account tab -->
+
+      <!-- ── TEAM TAB ───────────────────────────────────────────────────── -->
+      <div id="stab-panel-team" style="display:none">
+        <div id="stab-team-content"></div>
+      </div>
 
       <!-- ── PRODUCTS & PRICING TAB ──────────────────────────────────────── -->
       <div id="stab-panel-pricing" style="display:none;flex-direction:column;gap:20px">
@@ -1739,11 +1872,18 @@ async function loadSettings() {
 }
 
 function switchSettingsTab(tab) {
-  ['account','pricing'].forEach(t => {
-    document.getElementById('stab-'+t).classList.toggle('active', t===tab);
+  ['account','team','pricing'].forEach(t => {
+    const btn = document.getElementById('stab-'+t);
+    if (btn) btn.classList.toggle('active', t===tab);
     const panel = document.getElementById('stab-panel-'+t);
-    panel.style.display = t===tab ? 'flex' : 'none';
+    if (!panel) return;
+    // account and pricing use flex, team uses block
+    panel.style.display = t===tab ? (t==='team'?'block':'flex') : 'none';
   });
+  if (tab==='team') {
+    // Render team content into the team panel
+    loadUsersInto('stab-team-content');
+  }
 }
 
 // ── PRICING UI ────────────────────────────────────────────────────────────────
@@ -1993,6 +2133,76 @@ async function adminUnlinkTrip(jobId) {
   renderModalContent(currentJobId||jobId);
 }
 
+// ── FINANCES TAB (combines Quotes + Financial) ────────────────────────────────
+let financesSubTab = 'active';
+
+async function loadFinances() {
+  // Load quotes data if not yet loaded
+  if (!quotesData.length) {
+    try { const r=await apiFetch(capi('/quotes')); const d=await r.json(); if(Array.isArray(d)) quotesData=d; } catch(e){}
+  }
+  renderFinancesView();
+}
+
+function renderFinancesView() {
+  const el = document.getElementById('tab-finances');
+  if (!el) return;
+  el.innerHTML = `
+  <div style="display:flex;gap:4px;border-bottom:1px solid #1e293b;margin-bottom:20px">
+    <button class="settings-tab ${financesSubTab==='active'?'active':''}" onclick="setFinancesTab('active')">📋 Active Quotes</button>
+    <button class="settings-tab ${financesSubTab==='closed'?'active':''}" onclick="setFinancesTab('closed')">✓ Closed</button>
+    <button class="settings-tab ${financesSubTab==='summary'?'active':''}" onclick="setFinancesTab('summary')">📊 Summary</button>
+  </div>
+  <div id="fin-panel-active" style="display:${financesSubTab==='active'?'block':'none'}">
+    ${renderFinanceQuotesList('active')}
+  </div>
+  <div id="fin-panel-closed" style="display:${financesSubTab==='closed'?'block':'none'}">
+    ${renderFinanceQuotesList('closed')}
+  </div>
+  <div id="fin-panel-summary" style="display:${financesSubTab==='summary'?'block':'none'}">
+    <div id="financial-content"><div style="color:#475569;font-size:13px;text-align:center;padding:40px 0">Loading…</div></div>
+  </div>`;
+  if (financesSubTab === 'summary') loadFinancial();
+}
+
+function setFinancesTab(tab) {
+  financesSubTab = tab;
+  ['active','closed','summary'].forEach(t => {
+    const p = document.getElementById('fin-panel-'+t); if(p) p.style.display=t===tab?'block':'none';
+  });
+  renderFinancesSubTabButtons();
+  if (tab==='summary') loadFinancial();
+  if (tab==='active'||tab==='closed') {
+    const p = document.getElementById('fin-panel-'+tab);
+    if (p) p.innerHTML = renderFinanceQuotesList(tab);
+  }
+}
+
+function renderFinancesSubTabButtons() {
+  document.querySelectorAll('[onclick^="setFinancesTab"]').forEach(b => {
+    const t = b.getAttribute('onclick').match(/'(\w+)'/)?.[1];
+    if (t) b.classList.toggle('active', t===financesSubTab);
+  });
+}
+
+function renderFinanceQuotesList(type) {
+  const ACTIVE = ['draft','sent','accepted','invoiced'];
+  const CLOSED = ['paid','rejected'];
+  const filter = type==='active' ? ACTIVE : CLOSED;
+  const list = quotesData.filter(q=>filter.includes(q.status))
+    .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  if (!list.length) {
+    const msg = type==='active'
+      ? 'No active quotes. <button onclick="setFinancesTab(\'active\');openNewQuote()" class="btn-primary" style="margin-left:10px;font-size:12px;padding:5px 12px">+ New Quote</button>'
+      : 'No completed quotes yet.';
+    return `<div style="color:#334155;font-size:13px;padding:40px 0;text-align:center">${msg}</div>`;
+  }
+  const addBtn = type==='active'
+    ? `<div style="display:flex;justify-content:flex-end;margin-bottom:14px"><button onclick="openNewQuote()" class="btn-primary" style="font-size:13px;padding:7px 16px">+ Add Quote</button></div>`
+    : '';
+  return addBtn + list.map(renderQuoteCard).join('');
+}
+
 // ── QUOTES SYSTEM ─────────────────────────────────────────────────────────────
 
 async function loadQuotes() {
@@ -2004,13 +2214,22 @@ async function loadQuotes() {
   renderQuotesView();
 }
 
+function _getQuotesEl() {
+  // Render into finances panel when active, otherwise fall back to quotes-content
+  if (mainTab==='finances') {
+    const p = document.getElementById('fin-panel-active') || document.getElementById('fin-panel-closed');
+    return p || document.getElementById('quotes-content');
+  }
+  return document.getElementById('quotes-content');
+}
+
 function renderQuotesView() {
   if (quotesView === 'builder') renderQuoteBuilder();
   else renderQuotesList();
 }
 
 function renderQuotesList() {
-  const el = document.getElementById('quotes-content');
+  const el = _getQuotesEl();
   if (!el) return;
   const qry   = (document.getElementById('ql-search')?.value||'').toLowerCase();
   const stFlt = document.getElementById('ql-status')?.value||'';
@@ -2092,6 +2311,7 @@ async function openNewQuote() {
     createdAt: new Date().toISOString().slice(0,10)
   };
   quotesView = 'builder';
+  if (mainTab !== 'finances') setMainTab('finances', document.querySelector('[data-tab=finances]'));
   renderQuoteBuilder();
 }
 
@@ -2101,6 +2321,7 @@ async function openQuoteBuilder(quoteId) {
   if (!q) return;
   currentQuote = JSON.parse(JSON.stringify(q));
   quotesView = 'builder';
+  if (mainTab !== 'finances') setMainTab('finances', document.querySelector('[data-tab=finances]'));
   renderQuoteBuilder();
 }
 
@@ -2113,7 +2334,7 @@ async function _refreshQuoteJobGroups() {
 }
 
 function renderQuoteBuilder() {
-  const el = document.getElementById('quotes-content');
+  const el = _getQuotesEl();
   if (!el || !currentQuote) return;
   const q      = currentQuote;
   const isNew  = !q.id;
@@ -2476,8 +2697,8 @@ async function _persistQuote() {
     return;
   }
   // Refresh quotes data + re-render builder with updated state
-  await loadQuotes();          // updates quotesData
-  quotesView = 'builder';     // loadQuotes calls renderQuotesView which would switch to list
+  try { const r=await apiFetch(capi('/quotes')); const d=await r.json(); if(Array.isArray(d)) quotesData=d; } catch(e){}
+  quotesView = 'builder';
   renderQuoteBuilder();        // re-render builder
   if (msgEl) { msgEl.style.color='#34d399'; msgEl.textContent='Saved!'; setTimeout(()=>{if(msgEl)msgEl.textContent='';},2000); }
 }
@@ -2506,7 +2727,13 @@ async function uploadQuoteInvoiceFile(quoteId, input) {
 function backToQuotesList() {
   quotesView = 'list';
   currentQuote = null;
-  renderQuotesList();
+  // Return to finances active tab
+  if (mainTab === 'finances') {
+    financesSubTab = 'active';
+    renderFinancesView();
+  } else {
+    renderQuotesList();
+  }
 }
 
 // ── Phase 3: Financial dashboard ─────────────────────────────────────────────
@@ -2589,7 +2816,7 @@ async function loadFinancial() {
                 ${invoiceJobs.map(j=>{
                   const inv = j.invoice||{};
                   const sc = {draft:'#64748b',sent:'#38bdf8',paid:'#34d399'}[inv.status]||'#64748b';
-                  return `<tr style="border-bottom:1px solid #1e293b;cursor:pointer" onclick="setMainTab('jobs',document.querySelector('[data-tab=jobs]'));setTimeout(()=>openDetail('${j.id}'),50)">
+                  return `<tr style="border-bottom:1px solid #1e293b;cursor:pointer" onclick="setMainTab('jobs',document.querySelector('[data-tab=jobs]'));openDetail('${j.id}')">
                     <td style="padding:8px 12px;font-family:monospace;font-size:12px;color:#38bdf8">${j.id}</td>
                     <td style="padding:8px 12px;font-size:12px;color:#e2e8f0">${j.clientCompanyName||j.clientName||'—'}</td>
                     <td style="padding:8px 12px;font-size:12px;color:#94a3b8">${inv.invoiceNo||'—'}</td>
@@ -3105,6 +3332,9 @@ checkAuth();
       <button class="btn-secondary" style="flex:1" onclick="closeNewJobModal()">Cancel</button>
       <button class="btn-primary" style="flex:2" id="an-submit-btn" onclick="submitAdminJob()">Create Job</button>
     </div>
+    <div style="text-align:center;margin-top:10px">
+      <button onclick="closeNewJobModal();openAddRecord()" style="background:none;border:none;color:#475569;font-size:12px;cursor:pointer;text-decoration:underline;padding:4px 8px">📥 Bulk Import instead</button>
+    </div>
   </div>
 </div>
 
@@ -3156,6 +3386,23 @@ checkAuth();
       <button class="btn-primary" style="flex:2" onclick="submitAddUser()">Add Member</button>
     </div>
   </div>
+</div>
+
+<!-- Fixed sidebar icon buttons -->
+<div style="position:fixed;left:16px;bottom:36px;z-index:200;display:flex;flex-direction:column-reverse;gap:8px">
+  <button id="sidebar-settings-btn" onclick="setMainTab('settings',null)"
+    style="width:42px;height:42px;border-radius:12px;border:1px solid #1e293b;background:#0a1220;color:#64748b;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s"
+    onmouseover="this.style.borderColor='#334155';this.style.color='#94a3b8'"
+    onmouseout="this.style.borderColor='#1e293b';this.style.color='#64748b'"
+    title="Settings">⚙️</button>
+  <button id="sidebar-messages-btn" onclick="setMainTab('messages',null)"
+    style="width:42px;height:42px;border-radius:12px;border:1px solid #1e293b;background:#0a1220;color:#64748b;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;transition:all .15s"
+    onmouseover="this.style.borderColor='#334155';this.style.color='#94a3b8'"
+    onmouseout="this.style.borderColor='#1e293b';this.style.color='#64748b'"
+    title="Messages">
+    💬
+    <span id="sidebar-unread" style="display:none;position:absolute;top:-5px;right:-5px;background:#38bdf8;color:#0a1220;border-radius:99px;font-size:10px;font-weight:700;min-width:16px;height:16px;align-items:center;justify-content:center;padding:0 3px">0</span>
+  </button>
 </div>
 
 <div style="position:fixed;bottom:0;left:0;right:0;height:26px;background:#050b14;border-top:1px solid #0d1829;display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:none">
