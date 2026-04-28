@@ -175,21 +175,32 @@
     <div class="topbar-portal">Admin Portal</div>
   </div>
   <div class="topbar-spacer"></div>
-  <button class="btn-secondary" onclick="openAddRecord()" style="font-size:13px;padding:7px 14px"><span class="hide-mobile">📋 Add Record</span><span class="show-mobile">📋</span></button>
+  <button class="btn-secondary" onclick="openNewInvoiceModal()" style="font-size:13px;padding:7px 14px"><span class="hide-mobile">+ New Invoice</span><span class="show-mobile">💰</span></button>
   <button class="btn-primary" onclick="openNewJobModal()" style="font-size:13px;padding:7px 14px"><span class="hide-mobile">+ New Service</span><span class="show-mobile">+</span></button>
   <button class="btn-logout" onclick="tfLogout()">Sign Out</button>
 </div>
 
 <div class="page-wide">
   <!-- Main tabs -->
-  <div class="tabs" style="margin-bottom:20px">
+  <div class="tabs" style="margin-bottom:20px;display:flex;align-items:center">
     <button class="tab-btn active" data-tab="dashboard" onclick="setMainTab('dashboard',this)">Dashboard</button>
-    <button class="tab-btn" data-tab="jobs" onclick="setMainTab('jobs',this)">Jobs <span class="tab-count" id="tc-jobs">0</span></button>
-    <button class="tab-btn" data-tab="finances" onclick="setMainTab('finances',this)">Finances</button>
+    <button class="tab-btn" data-tab="jobs" onclick="setMainTab('jobs',this)">All Jobs <span class="tab-count" id="tc-jobs">0</span></button>
+    <button class="tab-btn" data-tab="invoices" onclick="setMainTab('invoices',this)">Invoices <span class="tab-count" id="tc-invoices">0</span></button>
+    <button class="tab-btn" data-tab="summary" onclick="setMainTab('summary',this)">Summary</button>
+    <div style="flex:1"></div>
+    <button id="nav-messages-btn" class="tab-btn" onclick="setMainTab('messages',this)" style="position:relative" title="Messages">
+      💬
+      <span id="sidebar-unread" style="display:none;position:absolute;top:2px;right:2px;background:#38bdf8;color:#0a1220;border-radius:99px;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px">0</span>
+    </button>
+    <button id="nav-settings-btn" class="tab-btn" onclick="setMainTab('settings',this)" title="Settings">⚙️</button>
   </div>
 
   <!-- FINANCES tab (new combined tab) -->
   <div id="tab-finances" style="display:none"></div>
+  <!-- INVOICES tab -->
+  <div id="tab-invoices" style="display:none"></div>
+  <!-- SUMMARY tab -->
+  <div id="tab-summary" style="display:none"></div>
 
   <!-- OVERVIEW -->
   <div id="tab-overview">
@@ -203,6 +214,10 @@
         <div style="font-weight:600;font-size:13px;color:#94a3b8;margin-bottom:10px">📋 Active Installations</div>
         <div id="today-list"></div>
       </div>
+    </div>
+    <div style="margin-top:20px">
+      <div style="font-weight:600;font-size:13px;color:#94a3b8;margin-bottom:10px">💰 Pending Invoices</div>
+      <div id="pending-inv-list"></div>
     </div>
   </div>
 
@@ -265,7 +280,7 @@
 
 <!-- JOB DETAIL MODAL -->
 <div class="modal-overlay" id="detail-modal" onclick="if(event.target===this)closeDetail()">
-  <div class="modal fade-in" style="width:700px;max-height:90vh;overflow-y:auto">
+  <div class="modal fade-in" style="width:min(960px,95vw);max-height:92vh;overflow-y:auto">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px">
       <div class="modal-title" style="margin:0" id="modal-job-title">Job Detail</div>
       <div style="display:flex;gap:8px">
@@ -294,6 +309,13 @@ function scheduleRefresh() {
 }
 let jobs=[], currentJobId=null, mainTab='dashboard', _jdTab='overview';
 let quotesData=[], quotesView='list', currentQuote=null, quoteJobGroups=[];
+let invoicesData=[];
+const _chatRead = JSON.parse(localStorage.getItem('chatRead_'+(window.location.pathname.split('/').filter(Boolean)[0]||''))||'{}');
+function _markChatRead(jobId) {
+  const cid = window.location.pathname.split('/').filter(Boolean)[0]||'';
+  _chatRead[jobId]=Date.now();
+  localStorage.setItem('chatRead_'+cid, JSON.stringify(_chatRead));
+}
 const QSC={draft:'#64748b',sent:'#38bdf8',accepted:'#4ade80',rejected:'#f87171',invoiced:'#a78bfa',paid:'#34d399'};
 const QSB={draft:'#1e293b',sent:'#0c2a3a',accepted:'#0a2a1e',rejected:'#2a0f0f',invoiced:'#1e1130',paid:'#0a2a1e'};
 
@@ -364,7 +386,11 @@ async function loadAll(){
   } catch(e) { console.error('loadJobs error',e); return; }
   // Load quotes silently so job detail badge stays current
   try { const qr = await apiFetch(capi('/quotes')); const qd = await qr.json(); if(Array.isArray(qd)) quotesData=qd; } catch(e) {}
+  // Load invoices
+  try { const ir = await apiFetch(capi('/invoices')); const id2 = await ir.json(); if(Array.isArray(id2)) invoicesData=id2; } catch(e) {}
   document.getElementById('tc-jobs').textContent=jobs.length;
+  const tcInv = document.getElementById('tc-invoices');
+  if (tcInv) tcInv.textContent = invoicesData.filter(x=>x.status==='invoiced').length;
   // Rebuild client filter dynamically
   const _fcEl = document.getElementById('filter-client');
   if (_fcEl) {
@@ -395,17 +421,19 @@ async function loadAll(){
   if(mainTab==='jobs') renderJobsTab();
   if(mainTab==='messages') loadMessages();
   if(mainTab==='finances') loadFinances();
+  if(mainTab==='invoices') loadInvoicesTab();
+  if(mainTab==='summary') loadSummaryTab();
   checkUnread();
 }
 
 async function checkUnread(){
   const r=await apiFetch(capi('/messages/unread')).then(x=>x.json());
   const c=r.count;
-  // Update sidebar unread badge
+  // Update nav unread badge
   const sbu = document.getElementById('sidebar-unread');
   if (sbu) {
     sbu.textContent = c;
-    sbu.style.display = c>0 ? 'flex' : 'none';
+    sbu.style.display = c>0 ? 'inline-flex' : 'none';
   }
 }
 
@@ -417,27 +445,24 @@ async function markAllRead(){
 
 function setMainTab(tab, el) {
   mainTab = tab;
-  document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.remove('active'));
-  if (el) el.classList.add('active');
-  // 'dashboard' uses id tab-overview; 'settings' uses tab-settings; others use tab-{tab}
-  ['dashboard','jobs','finances','messages','settings'].forEach(t => {
-    const divId = t==='dashboard'?'tab-overview':(t==='settings'?'tab-settings':'tab-'+t);
-    const div = document.getElementById(divId);
-    if (div) div.style.display = t===tab?'block':'none';
+  const tabs = ['overview','jobs','finances','quotes','financial','invoices','summary','messages','settings','users'];
+  tabs.forEach(t => {
+    const d = document.getElementById('tab-'+t);
+    if (d) d.style.display = 'none';
   });
-  // also hide old tabs that may still exist
-  ['tab-quotes','tab-financial','tab-users'].forEach(id => {
-    const d = document.getElementById(id); if(d) d.style.display='none';
-  });
-  // Update sidebar icon states
-  const sbm = document.getElementById('sidebar-messages-btn');
-  const sbs = document.getElementById('sidebar-settings-btn');
-  if (sbm) sbm.style.background = tab==='messages'?'#0c2a3a':'#0a1220';
-  if (sbs) sbs.style.background = tab==='settings'?'#1e293b':'#0a1220';
-  // Load content
-  if (tab==='jobs') renderJobsTab();
+  const divId = tab==='dashboard'?'tab-overview':('tab-'+tab);
+  const d = document.getElementById(divId);
+  if (d) d.style.display = '';
+  // Update tab-btn active state
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
+  // Icon buttons
+  document.getElementById('nav-messages-btn')?.classList.toggle('active', tab==='messages');
+  document.getElementById('nav-settings-btn')?.classList.toggle('active', tab==='settings');
   if (tab==='messages') loadMessages();
   if (tab==='settings') loadSettings();
+  if (tab==='invoices') loadInvoicesTab();
+  if (tab==='summary') loadSummaryTab();
+  if (tab==='jobs') renderJobsTab();
   if (tab==='finances') loadFinances();
 }
 
@@ -506,13 +531,17 @@ function renderOverview(){
     completed: jobs.filter(j=>j.status==='Completed').length,
     today: jobs.filter(j=>j.date===today).length
   };
+  const invoiced = invoicesData.filter(x=>x.status==='invoiced').length;
+  const paidThisMonth = invoicesData.filter(x=>x.status==='paid'&&(x.paidDate||'').slice(0,7)===new Date().toISOString().slice(0,7)).length;
   document.getElementById('stat-grid').innerHTML=[
-    {label:'Total Jobs',    value:counts.total,     color:'#94a3b8'},
-    {label:'Active',        value:counts.active,    color:'#4ade80'},
-    {label:'Pending Accept',value:counts.pending,   color:'#fca5a5'},
-    {label:'Waiting Docs',  value:counts.waiting,   color:'#fb923c'},
-    {label:'Reschedules',   value:counts.reschedule,color:'#f87171'},
-    {label:'Completed',     value:counts.completed, color:'#64748b'},
+    {label:'Total Jobs',       value:counts.total,     color:'#94a3b8'},
+    {label:'Active',           value:counts.active,    color:'#4ade80'},
+    {label:'Pending Accept',   value:counts.pending,   color:'#fca5a5'},
+    {label:'Waiting Docs',     value:counts.waiting,   color:'#fb923c'},
+    {label:'Reschedules',      value:counts.reschedule,color:'#f87171'},
+    {label:'Completed',        value:counts.completed, color:'#64748b'},
+    {label:'Pending Invoices', value:invoiced,         color:'#a78bfa'},
+    {label:'Paid This Month',  value:paidThisMonth,    color:'#34d399'},
   ].map(s=>`<div class="stat-card"><div class="stat-value" style="color:${s.color}">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
 
   // Attention list
@@ -526,10 +555,12 @@ function renderOverview(){
     else if(j.status==='Waiting for Docs') reason='📄 Waiting for installer documents';
     else if(j.needsAssignment&&!j.technician) reason='⚠ Needs installer assigned';
     else if(!j.time) reason='🕐 No installation time set';
-    const chatDot=(j.chat&&j.chat.length&&j.chat[j.chat.length-1]?.fromRole!=='admin')
-      ?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#38bdf8;margin-left:6px;animation:pulse 2s infinite"></span>':'';
-    return `<div class="job-card" onclick="openDetail('${j.id}')" style="${jobUrgencyStyle(j)}">
-      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${chatDot}${getJobBadge(j)}</div>
+    const chat2 = j.chat||[];
+    const lastRead2 = _chatRead[j.id]||0;
+    const unread2 = chat2.filter(m=>new Date(m.at).getTime()>lastRead2 && m.fromRole!=='admin').length;
+    const glowStyle2 = unread2>0 ? 'box-shadow:0 0 0 2px #38bdf8,0 0 12px rgba(56,189,248,0.4);border-color:#38bdf8;' : '';
+    return `<div class="job-card" onclick="openDetail('${j.id}')" style="${jobUrgencyStyle(j)}${glowStyle2}">
+      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}</div>
       <div style="font-size:12px;color:#fb923c">${reason}</div>
     </div>`;
   }).join(''):'<div style="color:#334155;font-size:13px;padding:20px 0">Nothing needs attention right now</div>';
@@ -537,16 +568,44 @@ function renderOverview(){
   // Active jobs only on overview
   const overviewJobs = jobs.filter(j=>j.status!=='Completed'&&!j.truckUnavailable&&!j.problemReport&&j.rescheduleProposal?.status!=='pending'&&!j.needsAssignment);
   document.getElementById('today-list').innerHTML = overviewJobs.length ? overviewJobs.map(j=>{
-    const chatDot2=(j.chat&&j.chat.length&&j.chat[j.chat.length-1]?.fromRole!=='admin')
-      ?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#38bdf8;margin-left:6px;animation:pulse 2s infinite"></span>':'';
+    const chat = j.chat||[];
+    const lastRead = _chatRead[j.id]||0;
+    const unread = chat.filter(m=>new Date(m.at).getTime()>lastRead && m.fromRole!=='admin').length;
+    const lastMsg = chat.length ? chat[chat.length-1] : null;
+    const lastMsgHtml = lastMsg ? `
+      <div style="font-size:11px;color:${unread>0?'#38bdf8':'#475569'};margin-top:4px;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+        ${unread>0?`<span style="display:inline-flex;align-items:center;justify-content:center;background:#38bdf8;color:#0a1220;border-radius:99px;font-size:9px;font-weight:700;min-width:16px;height:16px;padding:0 4px;flex-shrink:0">${unread}</span>`:''}
+        <span style="overflow:hidden;text-overflow:ellipsis">${lastMsg.fromName||lastMsg.fromRole}: ${(lastMsg.message||'').slice(0,60)}${(lastMsg.message||'').length>60?'…':''}</span>
+      </div>` : '';
+    const glowStyle = unread>0 ? 'box-shadow:0 0 0 2px #38bdf8,0 0 12px rgba(56,189,248,0.4);border-color:#38bdf8;' : '';
     return `
-    <div class="job-card" onclick="openDetail('${j.id}')">
-      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${chatDot2}${getJobBadge(j)}</div>
+    <div class="job-card" onclick="openDetail('${j.id}')" style="${glowStyle}">
+      <div class="job-card-top"><span class="job-id">${j.id}</span><span class="job-name">${j.name||j.location}</span>${getJobBadge(j)}</div>
       <div class="job-meta"><span>👤 ${j.clientCompanyName||j.clientName||'—'}${j.clientName&&j.clientName!==j.clientCompanyName?' ('+j.clientName+')':''}</span><span>🔧 ${j.technician||'Unassigned'}</span><span>📅 ${j.date}${j.time?' '+j.time:''}</span><span>🚛 ${j.truck||'TBC'}</span>
       ${j.completionDate?`<span style="color:#64748b">✓ Done ${j.completionDate}</span>`:''}
       </div>
+      ${lastMsgHtml}
     </div>`;
   }).join('') : '<div style="color:#334155;font-size:13px;padding:20px 0">No jobs yet</div>';
+
+  // Pending invoices section
+  const pendingInvEl = document.getElementById('pending-inv-list');
+  if (pendingInvEl) {
+    const pendingInvs = invoicesData.filter(x=>x.status==='invoiced')
+      .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    pendingInvEl.innerHTML = pendingInvs.map(inv=>`
+      <div class="job-card" onclick="openInvoiceModal('${inv.id}')" style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:12px;color:#64748b;font-family:'DM Mono',monospace">${inv.id}</div>
+          <div style="font-weight:700;font-size:13px;color:#f1f5f9">${inv.invoiceNumber||inv.id} · ${inv.clientName||''}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">${inv.date||''} · ${(inv.jobIds||[]).length} job${(inv.jobIds||[]).length===1?'':'s'}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:700;font-size:15px;color:#a78bfa">${inv.currency||''} ${(inv.amount||0).toLocaleString()}</div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:4px">Awaiting Payment</div>
+        </div>
+      </div>`).join('') || '<div style="color:#334155;font-size:13px;padding:20px 0;text-align:center">No pending invoices</div>';
+  }
 }
 
 function needsAttention(j) {
@@ -678,6 +737,7 @@ async function loadMessages(){
 function openDetail(id){
   currentJobId=id;
   _jdTab='overview'; // reset to overview on open
+  _markChatRead(id);
   document.getElementById('detail-modal').classList.add('open');
   renderModalContent(id);
   // Show force complete only for non-completed jobs
@@ -1085,12 +1145,9 @@ function renderModalContent(id){
   const jobCardHTML = `
   <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
     <a href="${capi('/jobs/'+j.id+'/job-card?token='+(getAuth()?.token||''))}" target="_blank"
+      title="Opens a print-ready job card you can save as PDF"
       style="display:inline-flex;align-items:center;gap:6px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:7px 16px;color:#94a3b8;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
       📄 Download Job Card (PDF)
-    </a>
-    <a href="${capi('/export/jobs.csv?token='+(getAuth()?.token||''))}" target="_blank"
-      style="display:inline-flex;align-items:center;gap:6px;background:#1e293b;border:1px solid #334155;border-radius:8px;padding:7px 16px;color:#94a3b8;font-size:12px;font-weight:600;text-decoration:none;cursor:pointer">
-      📊 Export All Jobs CSV
     </a>
   </div>`;
 
@@ -2834,6 +2891,311 @@ async function loadFinancial() {
   }
 }
 
+function renderStatGrid() {
+  // Re-render stat cards (called after invoice changes)
+  const today=new Date().toISOString().slice(0,10);
+  const active=jobs.filter(j=>j.status!=='Completed');
+  const counts={
+    total: jobs.length,
+    active: active.length,
+    pending: jobs.filter(j=>j.status==='Pending Acceptance').length,
+    waiting: jobs.filter(j=>j.status==='Waiting for Docs').length,
+    reschedule: jobs.filter(j=>j.rescheduleProposal?.status==='pending').length,
+    completed: jobs.filter(j=>j.status==='Completed').length,
+  };
+  const invoiced = invoicesData.filter(x=>x.status==='invoiced').length;
+  const paidThisMonth = invoicesData.filter(x=>x.status==='paid'&&(x.paidDate||'').slice(0,7)===new Date().toISOString().slice(0,7)).length;
+  const sg = document.getElementById('stat-grid');
+  if (sg) sg.innerHTML=[
+    {label:'Total Jobs',       value:counts.total,     color:'#94a3b8'},
+    {label:'Active',           value:counts.active,    color:'#4ade80'},
+    {label:'Pending Accept',   value:counts.pending,   color:'#fca5a5'},
+    {label:'Waiting Docs',     value:counts.waiting,   color:'#fb923c'},
+    {label:'Reschedules',      value:counts.reschedule,color:'#f87171'},
+    {label:'Completed',        value:counts.completed, color:'#64748b'},
+    {label:'Pending Invoices', value:invoiced,         color:'#a78bfa'},
+    {label:'Paid This Month',  value:paidThisMonth,    color:'#34d399'},
+  ].map(s=>`<div class="stat-card"><div class="stat-value" style="color:${s.color}">${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+}
+
+// ── INVOICES TAB ──────────────────────────────────────────────────────────────
+async function loadInvoicesTab() {
+  if (!invoicesData.length) {
+    try { const r=await apiFetch(capi('/invoices')); const d=await r.json(); if(Array.isArray(d)) invoicesData=d; } catch(e){}
+  }
+  const el=document.getElementById('tab-invoices');
+  if(!el) return;
+  const list=[...invoicesData].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div style="font-weight:700;font-size:15px;color:#f1f5f9">All Invoices <span style="font-size:12px;color:#64748b;font-weight:400">${list.length} total</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-secondary btn-sm" onclick="exportInvoicesCSV()">⬇ Export CSV</button>
+        <button class="btn-primary" onclick="openNewInvoiceModal()" style="font-size:13px;padding:7px 16px">+ New Invoice</button>
+      </div>
+    </div>
+    ${list.length===0?'<div style="text-align:center;color:#334155;padding:60px 0;font-size:14px">No invoices yet.</div>':''}
+    ${list.map(inv=>`
+      <div class="job-card" onclick="openInvoiceModal('${inv.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div style="min-width:0;flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="font-family:'DM Mono',monospace;font-size:12px;color:#64748b">${inv.id}</span>
+            ${inv.invoiceNumber?`<span style="font-size:12px;color:#94a3b8">#${inv.invoiceNumber}</span>`:''}
+            <span class="badge" style="background:${inv.status==='paid'?'#0a2a1e':'#1e1130'};color:${inv.status==='paid'?'#34d399':'#a78bfa'}">${inv.status}</span>
+          </div>
+          <div style="font-weight:700;font-size:13px;color:#f1f5f9">${inv.clientName||'—'}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">${inv.date||'—'} · ${(inv.jobIds||[]).length} job${(inv.jobIds||[]).length===1?'':'s'}${inv.notes?` · ${inv.notes.slice(0,40)}`:''}
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-weight:700;font-size:16px;color:${inv.status==='paid'?'#34d399':'#a78bfa'}">${inv.currency||''} ${(inv.amount||0).toLocaleString()}</div>
+          ${inv.paidDate?`<div style="font-size:11px;color:#475569;margin-top:2px">Paid ${inv.paidDate}</div>`:''}
+        </div>
+      </div>`).join('')}`;
+}
+
+function exportInvoicesCSV() {
+  const token = getAuth()?.token||'';
+  window.open(capi('/export/invoices.csv')+'?token='+token, '_blank');
+}
+
+function exportJobsCSV() {
+  const token = getAuth()?.token||'';
+  window.open(capi('/export/jobs.csv')+'?token='+token, '_blank');
+}
+
+// ── SUMMARY TAB ───────────────────────────────────────────────────────────────
+async function loadSummaryTab() {
+  const el=document.getElementById('tab-summary');
+  if(!el) return;
+  el.innerHTML='<div style="color:#475569;padding:40px 0;text-align:center">Loading…</div>';
+  try {
+    const r=await apiFetch(capi('/financial-summary'));
+    const {summary:s,monthly}=await r.json();
+    const monthlyArr=Object.entries(monthly||{}).sort().slice(-12).map(([mo,rev])=>({mo:mo.slice(5),rev}));
+    const maxRev=Math.max(1,...monthlyArr.map(x=>x.rev));
+    el.innerHTML=`
+      <div style="font-weight:700;font-size:15px;color:#f1f5f9;margin-bottom:20px">Financial Summary</div>
+      <div class="stat-grid" style="margin-bottom:24px">
+        <div class="stat-card"><div style="font-size:11px;color:#64748b;margin-bottom:4px">Total Jobs</div><div style="font-size:24px;font-weight:700;color:#f1f5f9">${s.totalJobs||0}</div></div>
+        <div class="stat-card"><div style="font-size:11px;color:#64748b;margin-bottom:4px">Completed</div><div style="font-size:24px;font-weight:700;color:#34d399">${s.completed||0}</div></div>
+        <div class="stat-card"><div style="font-size:11px;color:#64748b;margin-bottom:4px">Pending Invoices</div><div style="font-size:24px;font-weight:700;color:#a78bfa">${s.invoiced||0}</div></div>
+        <div class="stat-card"><div style="font-size:11px;color:#64748b;margin-bottom:4px">Paid Invoices</div><div style="font-size:24px;font-weight:700;color:#34d399">${s.paid||0}</div></div>
+        <div class="stat-card"><div style="font-size:11px;color:#64748b;margin-bottom:4px">Total Invoiced</div><div style="font-size:24px;font-weight:700;color:#a78bfa">${(s.totalInvoiced||0).toLocaleString()}</div></div>
+        <div class="stat-card"><div style="font-size:11px;color:#64748b;margin-bottom:4px">Total Paid</div><div style="font-size:24px;font-weight:700;color:#34d399">${(s.totalPaid||0).toLocaleString()}</div></div>
+        <div class="stat-card"><div style="font-size:11px;color:#64748b;margin-bottom:4px">Outstanding</div><div style="font-size:24px;font-weight:700;color:#f87171">${(s.outstanding||0).toLocaleString()}</div></div>
+      </div>
+      ${monthlyArr.length?`
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-title">Monthly Revenue (Paid)</div>
+        <div style="display:flex;align-items:flex-end;gap:8px;height:120px;padding-bottom:8px">
+          ${monthlyArr.map(x=>`
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">
+              <div style="font-size:9px;color:#64748b">${x.rev?x.rev.toLocaleString():''}</div>
+              <div style="width:100%;background:#38bdf8;border-radius:4px 4px 0 0;height:${Math.round((x.rev/maxRev)*100)}px;min-height:${x.rev?2:0}px"></div>
+              <div style="font-size:9px;color:#475569">${x.mo}</div>
+            </div>`).join('')}
+        </div>
+      </div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-secondary btn-sm" onclick="exportJobsCSV()">⬇ Export Jobs CSV</button>
+        <button class="btn-secondary btn-sm" onclick="exportInvoicesCSV()">⬇ Export Invoices CSV</button>
+      </div>`;
+  } catch(e) { el.innerHTML='<div style="color:#f87171;padding:20px">Failed to load summary</div>'; }
+}
+
+// ── NEW INVOICE MODAL ─────────────────────────────────────────────────────────
+async function openNewInvoiceModal(prefillJobId) {
+  let availJobs=[];
+  try { const r=await apiFetch(capi('/jobs-for-invoicing')); availJobs=await r.json(); } catch(e){}
+  const today=new Date().toISOString().slice(0,10);
+  const jobOptions=availJobs.map(j=>`<option value="${j.id}"${j.id===prefillJobId?'selected':''}>
+    ${j.id} — ${j.clientCompanyName||j.clientName||'—'} · ${j.location||'—'} · ${j.date||'—'}
+  </option>`).join('');
+
+  const html=`
+    <div class="modal fade-in" style="width:min(600px,95vw);max-height:90vh;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="modal-title">New Invoice</div>
+        <button class="btn-secondary btn-sm" onclick="closeModal('invoice-modal')">✕</button>
+      </div>
+      <div class="form-grid" style="gap:14px">
+        <div class="form-field">
+          <label class="form-label">Invoice Number</label>
+          <input id="inv-number" class="form-input" placeholder="e.g. INV-2024-001"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Date</label>
+          <input id="inv-date" type="date" class="form-input" value="${today}"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Amount</label>
+          <input id="inv-amount" type="number" class="form-input" placeholder="0.00"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Currency</label>
+          <select id="inv-currency" class="form-input">
+            <option>USD</option><option>ZAR</option><option>EUR</option><option>GBP</option><option>ZMW</option><option>ZWL</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-field" style="margin-top:12px">
+        <label class="form-label">Client Name</label>
+        <input id="inv-client" class="form-input" placeholder="Client company name"/>
+      </div>
+      <div class="form-field" style="margin-top:12px">
+        <label class="form-label">Link Jobs (optional)</label>
+        <select id="inv-jobs" class="form-input" multiple style="height:120px">
+          ${jobOptions}
+        </select>
+        <div style="font-size:11px;color:#64748b;margin-top:4px">Hold Ctrl/Cmd to select multiple jobs</div>
+      </div>
+      <div class="form-field" style="margin-top:12px">
+        <label class="form-label">Notes</label>
+        <textarea id="inv-notes" class="form-input" rows="2" placeholder="Optional notes…"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+        <button class="btn-secondary" onclick="closeModal('invoice-modal')">Cancel</button>
+        <button class="btn-primary" onclick="saveNewInvoice()">Create Invoice</button>
+      </div>
+    </div>`;
+
+  let ov=document.getElementById('invoice-modal');
+  if(!ov){ ov=document.createElement('div'); ov.id='invoice-modal'; ov.className='modal-overlay'; ov.onclick=e=>{if(e.target===ov)closeModal('invoice-modal');}; document.body.appendChild(ov); }
+  ov.innerHTML=html;
+  ov.classList.add('open');
+}
+
+function closeModal(id) {
+  const el=document.getElementById(id);
+  if(el) el.classList.remove('open');
+}
+
+async function saveNewInvoice() {
+  const invoiceNumber=document.getElementById('inv-number')?.value.trim()||'';
+  const date=document.getElementById('inv-date')?.value||new Date().toISOString().slice(0,10);
+  const amount=parseFloat(document.getElementById('inv-amount')?.value)||0;
+  const currency=document.getElementById('inv-currency')?.value||'USD';
+  const clientName=document.getElementById('inv-client')?.value.trim()||'';
+  const jobSel=document.getElementById('inv-jobs');
+  const jobIds=jobSel?Array.from(jobSel.selectedOptions).map(o=>o.value):[];
+  const notes=document.getElementById('inv-notes')?.value.trim()||'';
+
+  const r=await apiFetch(capi('/invoices'),{method:'POST',body:JSON.stringify({invoiceNumber,date,amount,currency,clientName,jobIds,notes})});
+  const d=await r.json();
+  if(d.ok){
+    closeModal('invoice-modal');
+    const ir=await apiFetch(capi('/invoices')); invoicesData=await ir.json();
+    if(mainTab==='invoices') loadInvoicesTab();
+    renderStatGrid();
+  } else { alert('Failed: '+(d.error||'unknown')); }
+}
+
+async function openInvoiceModal(invId) {
+  const inv=invoicesData.find(x=>x.id===invId);
+  if(!inv) return;
+  const html=`
+    <div class="modal fade-in" style="width:min(600px,95vw);max-height:90vh;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div>
+          <div class="modal-title">${inv.invoiceNumber||inv.id}</div>
+          <div style="font-size:12px;color:#64748b">${inv.id} · <span style="color:${inv.status==='paid'?'#34d399':'#a78bfa'};font-weight:700">${inv.status}</span></div>
+        </div>
+        <button class="btn-secondary btn-sm" onclick="closeModal('invoice-view-modal')">✕</button>
+      </div>
+
+      <div class="form-grid" style="gap:14px;margin-bottom:14px">
+        <div class="form-field">
+          <label class="form-label">Invoice Number</label>
+          <input id="ivm-number" class="form-input" value="${inv.invoiceNumber||''}"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Date</label>
+          <input id="ivm-date" type="date" class="form-input" value="${inv.date||''}"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Amount</label>
+          <input id="ivm-amount" type="number" class="form-input" value="${inv.amount||0}"/>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Currency</label>
+          <select id="ivm-currency" class="form-input">
+            ${['USD','ZAR','EUR','GBP','ZMW','ZWL'].map(c=>`<option${c===inv.currency?' selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="form-field" style="margin-bottom:12px">
+        <label class="form-label">Client</label>
+        <input id="ivm-client" class="form-input" value="${inv.clientName||''}"/>
+      </div>
+      <div class="form-field" style="margin-bottom:12px">
+        <label class="form-label">Notes</label>
+        <textarea id="ivm-notes" class="form-input" rows="2">${inv.notes||''}</textarea>
+      </div>
+
+      ${(inv.jobIds||[]).length?`
+      <div style="margin-bottom:14px">
+        <div class="form-label" style="margin-bottom:6px">Linked Jobs</div>
+        ${(inv.jobIds||[]).map(jid=>{
+          const j=jobs.find(x=>x.id===jid);
+          return `<div style="font-size:12px;color:#94a3b8;padding:4px 0;border-bottom:1px solid #0d1829">${jid}${j?` — ${j.clientCompanyName||j.clientName||''} · ${j.location||''}`:'(not found)'}</div>`;
+        }).join('')}
+      </div>`:''}
+
+      ${inv.status==='invoiced'?`
+      <div style="background:#1e1130;border:1px solid #4c1d95;border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-size:12px;color:#a78bfa;font-weight:600;margin-bottom:8px">Mark as Paid</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="ivm-paiddate" type="date" class="form-input" value="${new Date().toISOString().slice(0,10)}" style="flex:1"/>
+          <button class="btn-primary" onclick="markInvoicePaid('${inv.id}')" style="white-space:nowrap">✓ Mark Paid</button>
+        </div>
+      </div>`:''}
+
+      <div style="display:flex;gap:8px;justify-content:space-between;margin-top:16px">
+        <button class="btn-danger btn-sm" onclick="deleteInvoice('${inv.id}')">🗑 Delete</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn-secondary" onclick="closeModal('invoice-view-modal')">Cancel</button>
+          <button class="btn-primary" onclick="updateInvoice('${inv.id}')">Save Changes</button>
+        </div>
+      </div>
+    </div>`;
+
+  let ov=document.getElementById('invoice-view-modal');
+  if(!ov){ ov=document.createElement('div'); ov.id='invoice-view-modal'; ov.className='modal-overlay'; ov.onclick=e=>{if(e.target===ov)closeModal('invoice-view-modal');}; document.body.appendChild(ov); }
+  ov.innerHTML=html;
+  ov.classList.add('open');
+}
+
+async function updateInvoice(invId) {
+  const body={
+    invoiceNumber:document.getElementById('ivm-number')?.value.trim()||'',
+    date:document.getElementById('ivm-date')?.value||'',
+    amount:parseFloat(document.getElementById('ivm-amount')?.value)||0,
+    currency:document.getElementById('ivm-currency')?.value||'USD',
+    clientName:document.getElementById('ivm-client')?.value.trim()||'',
+    notes:document.getElementById('ivm-notes')?.value.trim()||''
+  };
+  const r=await apiFetch(capi('/invoices/'+invId),{method:'PUT',body:JSON.stringify(body)});
+  const d=await r.json();
+  if(d.ok){ closeModal('invoice-view-modal'); const ir=await apiFetch(capi('/invoices')); invoicesData=await ir.json(); if(mainTab==='invoices') loadInvoicesTab(); }
+  else alert('Failed: '+(d.error||''));
+}
+
+async function markInvoicePaid(invId) {
+  const paidDate=document.getElementById('ivm-paiddate')?.value||new Date().toISOString().slice(0,10);
+  const r=await apiFetch(capi('/invoices/'+invId+'/mark-paid'),{method:'POST',body:JSON.stringify({paidDate})});
+  const d=await r.json();
+  if(d.ok){ closeModal('invoice-view-modal'); const ir=await apiFetch(capi('/invoices')); invoicesData=await ir.json(); if(mainTab==='invoices') loadInvoicesTab(); if(mainTab==='dashboard') loadAll(); }
+  else alert('Failed');
+}
+
+async function deleteInvoice(invId) {
+  if(!confirm('Delete this invoice?')) return;
+  const r=await apiFetch(capi('/invoices/'+invId),{method:'DELETE'});
+  const d=await r.json();
+  if(d.ok){ closeModal('invoice-view-modal'); const ir=await apiFetch(capi('/invoices')); invoicesData=await ir.json(); if(mainTab==='invoices') loadInvoicesTab(); }
+}
+
 // ── Phase 4: Chat ─────────────────────────────────────────────────────────────
 async function chatLoad(jobId) {
   const el = document.getElementById('chat-msgs-'+jobId);
@@ -3388,22 +3750,6 @@ checkAuth();
   </div>
 </div>
 
-<!-- Fixed sidebar icon buttons -->
-<div style="position:fixed;left:16px;bottom:36px;z-index:200;display:flex;flex-direction:column-reverse;gap:8px">
-  <button id="sidebar-settings-btn" onclick="setMainTab('settings',null)"
-    style="width:42px;height:42px;border-radius:12px;border:1px solid #1e293b;background:#0a1220;color:#64748b;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s"
-    onmouseover="this.style.borderColor='#334155';this.style.color='#94a3b8'"
-    onmouseout="this.style.borderColor='#1e293b';this.style.color='#64748b'"
-    title="Settings">⚙️</button>
-  <button id="sidebar-messages-btn" onclick="setMainTab('messages',null)"
-    style="width:42px;height:42px;border-radius:12px;border:1px solid #1e293b;background:#0a1220;color:#64748b;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;transition:all .15s"
-    onmouseover="this.style.borderColor='#334155';this.style.color='#94a3b8'"
-    onmouseout="this.style.borderColor='#1e293b';this.style.color='#64748b'"
-    title="Messages">
-    💬
-    <span id="sidebar-unread" style="display:none;position:absolute;top:-5px;right:-5px;background:#38bdf8;color:#0a1220;border-radius:99px;font-size:10px;font-weight:700;min-width:16px;height:16px;align-items:center;justify-content:center;padding:0 3px">0</span>
-  </button>
-</div>
 
 <div style="position:fixed;bottom:0;left:0;right:0;height:26px;background:#050b14;border-top:1px solid #0d1829;display:flex;align-items:center;justify-content:center;z-index:50;pointer-events:none">
   <span style="font-size:11px;color:#1e293b;letter-spacing:.08em;font-weight:600">POWERED BY</span>

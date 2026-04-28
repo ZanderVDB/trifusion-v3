@@ -145,10 +145,12 @@
 
   <div id="proposal-alerts"></div>
 
-  <div class="tabs">
+  <div class="tabs" style="display:flex;align-items:center">
     <button class="tab-btn active" onclick="setTab('active',this)">Active<span class="tab-count" id="tc-active">0</span></button>
     <button class="tab-btn" onclick="setTab('completed',this)">Completed<span class="tab-count" id="tc-completed">0</span></button>
     <button class="tab-btn" onclick="setTab('all',this)">All<span class="tab-count" id="tc-all">0</span></button>
+    <div style="flex:1"></div>
+    <button class="btn-secondary btn-sm" onclick="exportMyJobs()" style="font-size:12px">⬇ Export My Jobs</button>
   </div>
   <div id="cl-all-filters" style="display:none;margin-bottom:12px">
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -309,6 +311,11 @@ function jobUrgencyStyle(job){
 }
 
 let jobs = [], currentJobId = null, currentTab = 'active';
+
+function exportMyJobs() {
+  const token = getAuth()?.token||'';
+  window.open('/api/'+COMPANY_ID+'/export/my-jobs.csv?token='+token, '_blank');
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 

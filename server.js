@@ -1672,51 +1672,31 @@ app.put('/api/:companyId/jobs/:id/invoice', requireCompanyAuth('admin'), (req, r
 });
 
 // Financial summary for admin dashboard
-app.get('/api/:companyId/financial-summary', requireCompanyAuth('admin'), (req, res) => {
-  const cid    = req.params.companyId;
-  const jobs   = getCompanyJobs(cid);
-  const quotes = getCompanyQuotes(cid);
-
-  const summary = {
-    totalJobs:      jobs.length,
-    completed:      0,
-    totalQuotes:    quotes.length,
-    quotesDraft:    0, quotesSent:     0, quotesAccepted: 0, quotesRejected: 0,
-    invoiced:       0, paid:           0,
-    totalInvoiced:  0, totalPaid:      0, outstanding:    0
+app.get('/api/:companyId/financial-summary', requireCompanyAuth('admin'), (req,res)=>{
+  const cid=req.params.companyId;
+  const jobs=getCompanyJobs(cid).map(j=>({...j,status:computeStatus(j)}));
+  const invs=getCompanyInvoices(cid);
+  const totalInvoiced=invs.filter(x=>x.status==='invoiced').reduce((s,x)=>s+(x.amount||0),0);
+  const totalPaid=invs.filter(x=>x.status==='paid').reduce((s,x)=>s+(x.amount||0),0);
+  const summary={
+    totalJobs:jobs.length,
+    completed:jobs.filter(j=>j.status==='Completed').length,
+    invoiced:invs.filter(x=>x.status==='invoiced').length,
+    paid:invs.filter(x=>x.status==='paid').length,
+    totalInvoiced, totalPaid,
+    outstanding:totalInvoiced
   };
-
-  jobs.forEach(j => { if (computeStatus(j) === 'Completed') summary.completed++; });
-
-  quotes.forEach(q => {
-    const total = (q.jobs||[]).reduce((s,jq) => s + (jq.amount||0), 0);
-    switch(q.status) {
-      case 'draft':    summary.quotesDraft++;    break;
-      case 'sent':     summary.quotesSent++;     summary.outstanding += total; break;
-      case 'accepted': summary.quotesAccepted++; summary.outstanding += total; break;
-      case 'rejected': summary.quotesRejected++; break;
-      case 'invoiced': summary.invoiced++;       summary.totalInvoiced += total; summary.outstanding += total; break;
-      case 'paid':     summary.paid++;           summary.totalPaid    += total; summary.totalInvoiced += total; break;
-    }
+  // Monthly breakdown - paid invoices by paidDate month
+  const monthly={};
+  invs.filter(x=>x.status==='paid'&&x.paidDate).forEach(x=>{
+    const mo=x.paidDate.slice(0,7);
+    monthly[mo]=(monthly[mo]||0)+(x.amount||0);
   });
-
-  // Monthly breakdown — paid quotes
-  const monthly = {};
-  quotes.forEach(q => {
-    if (q.status === 'paid' && q.paidAt) {
-      const mo    = q.paidAt.slice(0,7);
-      const total = (q.jobs||[]).reduce((s,jq) => s + (jq.amount||0), 0);
-      if (!monthly[mo]) monthly[mo] = 0;
-      monthly[mo] += total;
-    }
-  });
-
-  // Determine most-used currency
-  const currencies = {};
-  quotes.forEach(q => { if (q.currency) currencies[q.currency] = (currencies[q.currency]||0)+1; });
-  const currency = Object.entries(currencies).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
-
-  res.json({ ok: true, summary, monthly, currency });
+  // Currency - most common among invoices
+  const currencies={};
+  invs.forEach(x=>{ if(x.currency) currencies[x.currency]=(currencies[x.currency]||0)+1; });
+  const currency=Object.entries(currencies).sort((a,b)=>b[1]-a[1])[0]?.[0]||'USD';
+  res.json({ok:true,summary,monthly,currency});
 });
 
 // ── PHASE 4 — JOB CHAT ───────────────────────────────────────────────────────
@@ -1991,6 +1971,83 @@ function getAdminEmail(cid) {
 function jobLink(html) {
   return html + `<p style="margin-top:16px"><a href="${BASE_URL}" style="background:#1e4d8c;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open Trifusion Portal →</a></p>`;
 }
+// ── INVOICE SYSTEM ─────────────────────────────────────────────────────────────
+function getCompanyInvoices(cid) { return readJSON(companyFile(cid,'invoices.json'),[]); }
+function saveCompanyInvoices(cid,invs) { writeJSON(companyFile(cid,'invoices.json'),invs); }
+function nextInvoiceId(cid) {
+  const invs = getCompanyInvoices(cid);
+  const nums = invs.map(q=>parseInt((q.id||'').replace(/\D/g,''))||0);
+  return 'INV-'+String(Math.max(0,...nums)+1).padStart(3,'0');
+}
+
+// List invoices
+app.get('/api/:companyId/invoices', requireCompanyAuth('admin'), (req,res)=>{
+  res.json(getCompanyInvoices(req.params.companyId));
+});
+
+// Create invoice
+app.post('/api/:companyId/invoices', requireCompanyAuth('admin'), (req,res)=>{
+  const cid=req.params.companyId;
+  const {invoiceNumber='',date='',amount=0,currency='USD',clientId='',clientName='',jobIds=[],notes=''}=req.body;
+  const id=nextInvoiceId(cid);
+  const inv={
+    id,invoiceNumber,
+    date: date||new Date().toISOString().slice(0,10),
+    amount:parseFloat(amount)||0, currency,
+    clientId, clientName,
+    jobIds: Array.isArray(jobIds)?jobIds:[],
+    notes, status:'invoiced',
+    createdAt: new Date().toISOString(),
+    paidAt:null, paidDate:null
+  };
+  const all=getCompanyInvoices(cid); all.push(inv); saveCompanyInvoices(cid,all);
+  res.json({ok:true,id});
+});
+
+// Update invoice
+app.put('/api/:companyId/invoices/:invId', requireCompanyAuth('admin'), (req,res)=>{
+  const cid=req.params.companyId;
+  const all=getCompanyInvoices(cid);
+  const idx=all.findIndex(x=>x.id===req.params.invId);
+  if(idx<0) return res.status(404).json({error:'Not found'});
+  const {id,createdAt}=all[idx];
+  all[idx]={...all[idx],...req.body,id,createdAt};
+  if(req.body.amount!==undefined) all[idx].amount=parseFloat(req.body.amount)||0;
+  saveCompanyInvoices(cid,all);
+  res.json({ok:true});
+});
+
+// Delete invoice
+app.delete('/api/:companyId/invoices/:invId', requireCompanyAuth('admin'), (req,res)=>{
+  const cid=req.params.companyId;
+  saveCompanyInvoices(cid,getCompanyInvoices(cid).filter(x=>x.id!==req.params.invId));
+  res.json({ok:true});
+});
+
+// Mark invoice as paid
+app.post('/api/:companyId/invoices/:invId/mark-paid', requireCompanyAuth('admin'), (req,res)=>{
+  const cid=req.params.companyId;
+  const all=getCompanyInvoices(cid);
+  const inv=all.find(x=>x.id===req.params.invId);
+  if(!inv) return res.status(404).json({error:'Not found'});
+  inv.status='paid';
+  inv.paidAt=new Date().toISOString();
+  inv.paidDate=req.body.paidDate||new Date().toISOString().slice(0,10);
+  saveCompanyInvoices(cid,all);
+  res.json({ok:true});
+});
+
+// Jobs available for invoicing — completed jobs not yet linked to any invoice
+app.get('/api/:companyId/jobs-for-invoicing', requireCompanyAuth('admin'), (req,res)=>{
+  const cid=req.params.companyId;
+  const invs=getCompanyInvoices(cid);
+  const invoicedJobIds=new Set(invs.flatMap(x=>x.jobIds||[]));
+  const jobs=getCompanyJobs(cid)
+    .map(j=>({...j,status:computeStatus(j)}))
+    .filter(j=>!invoicedJobIds.has(j.id));
+  res.json(jobs);
+});
+
 // ── QUOTES SYSTEM ─────────────────────────────────────────────────────────────
 function getCompanyQuotes(cid) {
   return readJSON(companyFile(cid, 'quotes.json'), []);
@@ -2224,8 +2281,11 @@ ${j.notes&&j.notes.length?`
 app.get('/api/:companyId/export/jobs.csv', requireCompanyAuth('admin'), (req, res) => {
   const cid  = req.params.companyId;
   const jobs = getCompanyJobs(cid).map(j=>({...j, status:computeStatus(j)}));
+  const invs = getCompanyInvoices(cid);
+  const jobInvMap = {};
+  invs.forEach(inv => (inv.jobIds||[]).forEach(jid => { jobInvMap[jid] = inv; }));
 
-  const headers = ['ID','Date','Location','Country','Client','Technician','Category','Product','Service Type','Status','Truck','Contact Name','Contact Phone','Quote Amount','Quote Status','Invoice Amount','Invoice Status','Invoice No','Paid At','Travel Start','Travel End','Install Start','Install End','Created'];
+  const headers = ['ID','Date','Location','Country','Client','Technician','Category','Product','Service Type','Status','Truck','Contact Name','Contact Phone','Quote Amount','Quote Status','Invoice No','Invoice Amount','Invoice Status','Invoice Date','Paid Date','Travel Start','Travel End','Install Start','Install End','Created'];
   const esc = v => {
     if (v===null||v===undefined) return '';
     const s = String(v);
@@ -2243,7 +2303,7 @@ app.get('/api/:companyId/export/jobs.csv', requireCompanyAuth('admin'), (req, re
     j.contactName||'',
     j.contactPhone||'',
     j.quote?.amount??'', j.quote?.status||'',
-    j.invoice?.amount??'', j.invoice?.status||'', j.invoice?.invoiceNo||'', j.invoice?.paidAt||'',
+    jobInvMap[j.id]?.invoiceNumber||'', jobInvMap[j.id]?.amount??'', jobInvMap[j.id]?.status||'', jobInvMap[j.id]?.date||'', jobInvMap[j.id]?.paidDate||'',
     j.timeTracking?.travelStart||'', j.timeTracking?.travelEnd||'',
     j.timeTracking?.installStart||'', j.timeTracking?.installEnd||'',
     j.startDate||''
@@ -2252,6 +2312,50 @@ app.get('/api/:companyId/export/jobs.csv', requireCompanyAuth('admin'), (req, re
   const csv = [headers.join(','), ...rows].join('\r\n');
   res.setHeader('Content-Type','text/csv');
   res.setHeader('Content-Disposition',`attachment; filename="${cid}-jobs-${new Date().toISOString().slice(0,10)}.csv"`);
+  res.send(csv);
+});
+
+// Invoice CSV export
+app.get('/api/:companyId/export/invoices.csv', requireCompanyAuth('admin'), (req,res)=>{
+  const cid=req.params.companyId;
+  const invs=getCompanyInvoices(cid);
+  const jobs=getCompanyJobs(cid);
+  const jobMap={};
+  jobs.forEach(j=>{ jobMap[j.id]=j; });
+  const esc=v=>{ if(v===null||v===undefined) return ''; const s=String(v); return s.includes(',')||s.includes('"')||s.includes('\n')?`"${s.replace(/"/g,'""')}"`:`${s}`; };
+  const headers=['Invoice ID','Invoice Number','Date','Amount','Currency','Client','Status','Paid Date','Jobs','Notes'];
+  const rows=invs.map(inv=>{
+    const jobsList=(inv.jobIds||[]).map(jid=>{ const j=jobMap[jid]; return j?`${jid} (${j.location||''})`:jid; }).join('; ');
+    return [inv.id,inv.invoiceNumber||'',inv.date||'',inv.amount||0,inv.currency||'',inv.clientName||'',inv.status||'',inv.paidDate||'',jobsList,inv.notes||''].map(esc).join(',');
+  });
+  const csv=[headers.join(','),...rows].join('\r\n');
+  res.setHeader('Content-Type','text/csv');
+  res.setHeader('Content-Disposition',`attachment; filename="${cid}-invoices-${new Date().toISOString().slice(0,10)}.csv"`);
+  res.send(csv);
+});
+
+// Client/installer: export their own jobs
+app.get('/api/:companyId/export/my-jobs.csv', requireCompanyAuth(), (req,res)=>{
+  const cid=req.params.companyId;
+  const user=req.user;
+  let jobs=getCompanyJobs(cid).map(j=>({...j,status:computeStatus(j)}));
+  if(user.role==='client'){
+    jobs=jobs.filter(j=>j.clientId===user.clientId||j.clientId===user.username);
+  } else if(user.role==='installer'){
+    jobs=jobs.filter(j=>j.technician===user.username||j.technician===user.name||j.technician===user.installer);
+  }
+  const esc=v=>{ if(v===null||v===undefined) return ''; const s=String(v); return s.includes(',')||s.includes('"')||s.includes('\n')?`"${s.replace(/"/g,'""')}"`:`${s}`; };
+  const headers=['Job ID','Date','Location','Country','Vehicle','Service Type','Product','Status','Contact Name','Contact Phone','Travel Start','Travel End','Install Start','Install End'];
+  const rows=jobs.map(j=>[
+    j.id,j.date||'',j.location||'',j.country||'',j.truck||'',
+    j.installationType||j.serviceType||'',j.product||j.unitType||'',j.status,
+    j.contactName||'',j.contactPhone||'',
+    j.timeTracking?.travelStart||'',j.timeTracking?.travelEnd||'',
+    j.timeTracking?.installStart||'',j.timeTracking?.installEnd||''
+  ].map(esc).join(','));
+  const csv=[headers.join(','),...rows].join('\r\n');
+  res.setHeader('Content-Type','text/csv');
+  res.setHeader('Content-Disposition',`attachment; filename="my-jobs-${new Date().toISOString().slice(0,10)}.csv"`);
   res.send(csv);
 });
 
