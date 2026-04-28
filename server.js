@@ -2359,6 +2359,21 @@ app.get('/api/:companyId/export/my-jobs.csv', requireCompanyAuth(), (req,res)=>{
   res.send(csv);
 });
 
+// ── HQ SEED ENDPOINT (dev/testing only) ──────────────────────────────────────
+app.post('/api/hq/seed-company', requireAuth('hq'), (req, res) => {
+  const { companyId, jobs, invoices, append } = req.body;
+  if (!companyId) return res.status(400).json({ error: 'companyId required' });
+  if (jobs !== undefined) {
+    const existing = append ? getCompanyJobs(companyId) : [];
+    saveCompanyJobs(companyId, [...existing, ...jobs]);
+  }
+  if (invoices !== undefined) {
+    const existing = append ? getCompanyInvoices(companyId) : [];
+    saveCompanyInvoices(companyId, [...existing, ...invoices]);
+  }
+  res.json({ ok: true, jobs: getCompanyJobs(companyId).length, invoices: getCompanyInvoices(companyId).length });
+});
+
 // ── PAGE ROUTES ───────────────────────────────────────────────────────────────
 app.get('/',         (req,res) => res.sendFile(path.join(PUBLIC_DIR,'login.html')));
 app.get('/signup',   (req,res) => res.sendFile(path.join(PUBLIC_DIR,'signup','index.html')));
