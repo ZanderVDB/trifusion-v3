@@ -1,1 +1,3267 @@
-[]
+[
+  {
+    "id": "JOB-001",
+    "tripId": "TRIP-001",
+    "date": "2026-04-01",
+    "time": "08:00",
+    "location": "Cape Town Depot",
+    "country": "South Africa",
+    "clientId": "sarahk",
+    "clientName": "Sarah Kruger",
+    "clientCompanyName": "Rapid Logistics",
+    "technician": "jakevdm",
+    "truck": "RL-001",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Sipho Ndlovu",
+    "contactPhone": "+27 82 111 2233",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-01T06:30:00Z",
+      "travelEnd": "2026-04-01T07:55:00Z",
+      "installStart": "2026-04-01T08:10:00Z",
+      "installEnd": "2026-04-01T10:45:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_in6t8j",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "On my way, ETA 08:00",
+        "at": "2026-04-01T06:31:00Z"
+      },
+      {
+        "id": "chat1_tgcpzj",
+        "from": "sarahk",
+        "fromName": "Sarah Kruger",
+        "fromRole": "client",
+        "message": "Great, driver will meet you at gate 2",
+        "at": "2026-04-01T06:45:00Z"
+      },
+      {
+        "id": "chat2_19ey99",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "All done, unit is tracking perfectly",
+        "at": "2026-04-01T10:50:00Z"
+      },
+      {
+        "id": "chat3_spo9rn",
+        "from": "sarahk",
+        "fromName": "Sarah Kruger",
+        "fromRole": "client",
+        "message": "Confirmed, system is showing live. Thanks!",
+        "at": "2026-04-01T11:05:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.967Z"
+      }
+    ],
+    "startDate": "2026-04-01T05:00:00Z"
+  },
+  {
+    "id": "JOB-002",
+    "tripId": "TRIP-001",
+    "date": "2026-04-01",
+    "time": "11:30",
+    "location": "Bellville Truck Park",
+    "country": "South Africa",
+    "clientId": "sarahk",
+    "clientName": "Sarah Kruger",
+    "clientCompanyName": "Rapid Logistics",
+    "technician": "jakevdm",
+    "truck": "RL-004",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Basic",
+    "contactName": "Sipho Ndlovu",
+    "contactPhone": "+27 82 111 2233",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-01T10:55:00Z",
+      "travelEnd": "2026-04-01T11:25:00Z",
+      "installStart": "2026-04-01T11:35:00Z",
+      "installEnd": "2026-04-01T13:20:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_xio21y",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "Arrived, starting installation now",
+        "at": "2026-04-01T11:37:00Z"
+      },
+      {
+        "id": "chat1_turs0l",
+        "from": "sarahk",
+        "fromName": "Sarah Kruger",
+        "fromRole": "client",
+        "message": "Perfect. Let me know when done",
+        "at": "2026-04-01T11:40:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.975Z"
+      }
+    ],
+    "startDate": "2026-04-01T05:00:00Z"
+  },
+  {
+    "id": "JOB-003",
+    "tripId": "TRIP-001",
+    "date": "2026-04-01",
+    "time": "14:00",
+    "location": "Paarden Eiland Yard",
+    "country": "South Africa",
+    "clientId": "sarahk",
+    "clientName": "Sarah Kruger",
+    "clientCompanyName": "Rapid Logistics",
+    "technician": "jakevdm",
+    "truck": "RL-007",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Sipho Ndlovu",
+    "contactPhone": "+27 82 111 2233",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-01T13:25:00Z",
+      "travelEnd": "2026-04-01T13:55:00Z",
+      "installStart": "2026-04-01T14:05:00Z",
+      "installEnd": "2026-04-01T16:30:00Z",
+      "standingEntries": [
+        {
+          "id": "st1",
+          "reason": "Waiting for yard manager to release truck",
+          "durationMinutes": 45,
+          "status": "approved",
+          "adminStatus": "approved",
+          "faultType": "client",
+          "at": "2026-04-01T14:05:00Z"
+        }
+      ]
+    },
+    "chat": [
+      {
+        "id": "chat0_jnrd3b",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "Truck not ready, standing by",
+        "at": "2026-04-01T14:07:00Z"
+      },
+      {
+        "id": "chat1_xttnnx",
+        "from": "ftadmin",
+        "fromName": "Alex Mercer",
+        "fromRole": "admin",
+        "message": "Logged standing time, please confirm duration when done",
+        "at": "2026-04-01T14:10:00Z"
+      },
+      {
+        "id": "chat2_ybpn6r",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "45 min delay, all done now",
+        "at": "2026-04-01T17:00:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.975Z"
+      }
+    ],
+    "startDate": "2026-04-01T05:00:00Z"
+  },
+  {
+    "id": "JOB-004",
+    "tripId": "TRIP-002",
+    "date": "2026-04-28",
+    "time": "09:00",
+    "location": "Lusaka Central Depot",
+    "country": "Zambia",
+    "clientId": "mikeb",
+    "clientName": "Mike Botha",
+    "clientCompanyName": "TransAfrica",
+    "technician": "petros",
+    "truck": "TA-012",
+    "serviceType": "Fault Finding",
+    "installationType": "fault",
+    "product": "Tracker Advanced",
+    "contactName": "Chanda Mwale",
+    "contactPhone": "+260 97 456 7890",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": "2026-04-28T07:15:00Z",
+      "travelEnd": "2026-04-28T08:50:00Z",
+      "installStart": "2026-04-28T09:05:00Z",
+      "installEnd": null,
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_ekekex",
+        "from": "petros",
+        "fromName": "Petros Dlamini",
+        "fromRole": "installer",
+        "message": "On site, truck has intermittent GPS dropout",
+        "at": "2026-04-28T09:10:00Z"
+      },
+      {
+        "id": "chat1_4zz27k",
+        "from": "mikeb",
+        "fromName": "Mike Botha",
+        "fromRole": "client",
+        "message": "Yes, driver has been reporting this for 2 weeks",
+        "at": "2026-04-28T09:15:00Z"
+      },
+      {
+        "id": "chat2_cgbvrb",
+        "from": "petros",
+        "fromName": "Petros Dlamini",
+        "fromRole": "installer",
+        "message": "Found the issue — antenna cable damaged. Replacing now.",
+        "at": "2026-04-28T10:30:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.975Z"
+      }
+    ],
+    "startDate": "2026-04-27T08:00:00Z"
+  },
+  {
+    "id": "JOB-005",
+    "tripId": "TRIP-002",
+    "date": "2026-04-28",
+    "time": "13:00",
+    "location": "Chilanga Truck Stop",
+    "country": "Zambia",
+    "clientId": "mikeb",
+    "clientName": "Mike Botha",
+    "clientCompanyName": "TransAfrica",
+    "technician": "petros",
+    "truck": "TA-015",
+    "serviceType": "Inspection",
+    "installationType": "inspection",
+    "product": "Tracker Basic",
+    "contactName": "Chanda Mwale",
+    "contactPhone": "+260 97 456 7890",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": null,
+      "travelEnd": null,
+      "installStart": null,
+      "installEnd": null,
+      "standingEntries": []
+    },
+    "chat": [],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.975Z"
+      }
+    ],
+    "startDate": "2026-04-27T08:00:00Z"
+  },
+  {
+    "id": "JOB-006",
+    "tripId": "TRIP-003",
+    "date": "2026-04-10",
+    "time": "08:30",
+    "location": "Harare Industrial Park",
+    "country": "Zimbabwe",
+    "clientId": "lunab",
+    "clientName": "Luna Booysen",
+    "clientCompanyName": "Cape Fleet Co",
+    "technician": "emeka",
+    "truck": "CF-022",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Tendai Moyo",
+    "contactPhone": "+263 77 234 5678",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-10T07:00:00Z",
+      "travelEnd": "2026-04-10T08:20:00Z",
+      "installStart": "2026-04-10T08:35:00Z",
+      "installEnd": "2026-04-10T11:00:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_hh19vu",
+        "from": "emeka",
+        "fromName": "Emeka Osei",
+        "fromRole": "installer",
+        "message": "Installation complete, system is live",
+        "at": "2026-04-10T11:05:00Z"
+      },
+      {
+        "id": "chat1_cma7c4",
+        "from": "lunab",
+        "fromName": "Luna Booysen",
+        "fromRole": "client",
+        "message": "Confirmed on our dashboard. Great work!",
+        "at": "2026-04-10T11:20:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.975Z"
+      }
+    ],
+    "startDate": "2026-04-09T10:00:00Z"
+  },
+  {
+    "id": "JOB-007",
+    "tripId": "TRIP-003",
+    "date": "2026-04-10",
+    "time": "12:00",
+    "location": "Msasa Depot",
+    "country": "Zimbabwe",
+    "clientId": "lunab",
+    "clientName": "Luna Booysen",
+    "clientCompanyName": "Cape Fleet Co",
+    "technician": "emeka",
+    "truck": "CF-025",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Tendai Moyo",
+    "contactPhone": "+263 77 234 5678",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-10T11:10:00Z",
+      "travelEnd": "2026-04-10T11:50:00Z",
+      "installStart": "2026-04-10T12:05:00Z",
+      "installEnd": "2026-04-10T14:30:00Z",
+      "standingEntries": []
+    },
+    "chat": [],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.975Z"
+      }
+    ],
+    "startDate": "2026-04-09T10:00:00Z"
+  },
+  {
+    "id": "JOB-008",
+    "date": "2026-04-05",
+    "time": "10:00",
+    "location": "Johannesburg North Depot",
+    "country": "South Africa",
+    "clientId": "mikeb",
+    "clientName": "Mike Botha",
+    "clientCompanyName": "TransAfrica",
+    "technician": "jakevdm",
+    "truck": "TA-003",
+    "serviceType": "Removal + Reinstall",
+    "installationType": "removal-reinstall",
+    "product": "Tracker Basic",
+    "contactName": "Bongani Sithole",
+    "contactPhone": "+27 76 555 0011",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-05T08:30:00Z",
+      "travelEnd": "2026-04-05T09:55:00Z",
+      "installStart": "2026-04-05T10:10:00Z",
+      "installEnd": "2026-04-05T12:45:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_1tm758",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "Unit removed and reinstalled in new location. Working fine.",
+        "at": "2026-04-05T12:50:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.975Z"
+      }
+    ],
+    "startDate": "2026-04-04T09:00:00Z"
+  },
+  {
+    "id": "JOB-009",
+    "date": "2026-04-12",
+    "time": "09:00",
+    "location": "Ndola Sorting Yard",
+    "country": "Zambia",
+    "clientId": "lunab",
+    "clientName": "Luna Booysen",
+    "clientCompanyName": "Cape Fleet Co",
+    "technician": "petros",
+    "truck": "CF-030",
+    "serviceType": "Warranty Check",
+    "installationType": "warranty",
+    "product": "Tracker Basic",
+    "contactName": "Musa Phiri",
+    "contactPhone": "+260 95 678 9012",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-12T07:45:00Z",
+      "travelEnd": "2026-04-12T08:55:00Z",
+      "installStart": "2026-04-12T09:10:00Z",
+      "installEnd": "2026-04-12T10:30:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_g4r1j5",
+        "from": "petros",
+        "fromName": "Petros Dlamini",
+        "fromRole": "installer",
+        "message": "Warranty issue confirmed — faulty connector replaced under warranty.",
+        "at": "2026-04-12T10:35:00Z"
+      },
+      {
+        "id": "chat1_722hft",
+        "from": "lunab",
+        "fromName": "Luna Booysen",
+        "fromRole": "client",
+        "message": "Thank you, driver confirmed it is working again.",
+        "at": "2026-04-12T10:55:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.975Z"
+      }
+    ],
+    "startDate": "2026-04-11T09:00:00Z"
+  },
+  {
+    "id": "JOB-010",
+    "date": "2026-04-15",
+    "time": "07:30",
+    "location": "East London Terminal",
+    "country": "South Africa",
+    "clientId": "sarahk",
+    "clientName": "Sarah Kruger",
+    "clientCompanyName": "Rapid Logistics",
+    "technician": "jakevdm",
+    "truck": "RL-011",
+    "serviceType": "Repair Verification",
+    "installationType": "repair",
+    "product": "Tracker Advanced",
+    "contactName": "Zola Ntanzi",
+    "contactPhone": "+27 83 444 7788",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-15T06:00:00Z",
+      "travelEnd": "2026-04-15T07:25:00Z",
+      "installStart": "2026-04-15T07:35:00Z",
+      "installEnd": "2026-04-15T09:50:00Z",
+      "standingEntries": [
+        {
+          "id": "st2",
+          "reason": "Truck in workshop, had to wait for mechanic clearance",
+          "durationMinutes": 30,
+          "status": "approved",
+          "adminStatus": "approved",
+          "faultType": "client",
+          "at": "2026-04-15T07:35:00Z"
+        }
+      ]
+    },
+    "chat": [
+      {
+        "id": "chat0_s0x6vj",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "Repair verified successfully. Unit showing all satellites.",
+        "at": "2026-04-15T09:55:00Z"
+      },
+      {
+        "id": "chat1_wiih6q",
+        "from": "sarahk",
+        "fromName": "Sarah Kruger",
+        "fromRole": "client",
+        "message": "Great, confirmed on our end too.",
+        "at": "2026-04-15T10:05:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-14T09:00:00Z"
+  },
+  {
+    "id": "JOB-011",
+    "date": "2026-04-26",
+    "time": "08:00",
+    "location": "Port Elizabeth Container Yard",
+    "country": "South Africa",
+    "clientId": "sarahk",
+    "clientName": "Sarah Kruger",
+    "clientCompanyName": "Rapid Logistics",
+    "technician": "jakevdm",
+    "truck": "RL-019",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Lungelo Dube",
+    "contactPhone": "+27 71 222 5566",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": true,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": "2026-04-26T06:30:00Z",
+      "travelEnd": "2026-04-26T07:50:00Z",
+      "installStart": "2026-04-26T08:05:00Z",
+      "installEnd": "2026-04-26T10:15:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_26wjkn",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "Docs uploaded. Please check and confirm.",
+        "at": "2026-04-26T10:40:00Z"
+      },
+      {
+        "id": "chat1_x2pmp7",
+        "from": "ftadmin",
+        "fromName": "Alex Mercer",
+        "fromRole": "admin",
+        "message": "Checking documents now",
+        "at": "2026-04-26T10:55:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-25T09:00:00Z"
+  },
+  {
+    "id": "JOB-012",
+    "date": "2026-04-25",
+    "time": "09:00",
+    "location": "Bulawayo Fleet Yard",
+    "country": "Zimbabwe",
+    "clientId": "lunab",
+    "clientName": "Luna Booysen",
+    "clientCompanyName": "Cape Fleet Co",
+    "technician": "emeka",
+    "truck": "CF-033",
+    "serviceType": "Follow-Up",
+    "installationType": "follow-up",
+    "product": "Tracker Basic",
+    "contactName": "Simba Ncube",
+    "contactPhone": "+263 71 345 6789",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": true,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": "2026-04-25T07:20:00Z",
+      "travelEnd": "2026-04-25T08:55:00Z",
+      "installStart": "2026-04-25T09:10:00Z",
+      "installEnd": "2026-04-25T11:00:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_olvkki",
+        "from": "emeka",
+        "fromName": "Emeka Osei",
+        "fromRole": "installer",
+        "message": "Follow-up complete, unit replaced successfully. All documents uploaded.",
+        "at": "2026-04-25T11:05:00Z"
+      },
+      {
+        "id": "chat1_tjuhz2",
+        "from": "lunab",
+        "fromName": "Luna Booysen",
+        "fromRole": "client",
+        "message": "I can see the docs. Will confirm shortly.",
+        "at": "2026-04-25T11:30:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-24T09:00:00Z"
+  },
+  {
+    "id": "JOB-013",
+    "date": "2026-04-27",
+    "time": "08:30",
+    "location": "Lusaka Airport Road Depot",
+    "country": "Zambia",
+    "clientId": "mikeb",
+    "clientName": "Mike Botha",
+    "clientCompanyName": "TransAfrica",
+    "technician": "petros",
+    "truck": "TA-009",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Levy Banda",
+    "contactPhone": "+260 97 789 1234",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": "2026-04-27T07:00:00Z",
+      "travelEnd": "2026-04-27T08:20:00Z",
+      "installStart": "2026-04-27T08:35:00Z",
+      "installEnd": "2026-04-27T11:10:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_att7u3",
+        "from": "petros",
+        "fromName": "Petros Dlamini",
+        "fromRole": "installer",
+        "message": "Service done, unit confirmed working. Uploading documents now.",
+        "at": "2026-04-27T11:15:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-26T10:00:00Z"
+  },
+  {
+    "id": "JOB-014",
+    "date": "2026-04-28",
+    "time": "07:00",
+    "location": "Durban Harbour Logistics Hub",
+    "country": "South Africa",
+    "clientId": "sarahk",
+    "clientName": "Sarah Kruger",
+    "clientCompanyName": "Rapid Logistics",
+    "technician": "jakevdm",
+    "truck": "RL-022",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Nkosi Zulu",
+    "contactPhone": "+27 82 777 3344",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": true,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": "2026-04-28T05:30:00Z",
+      "travelEnd": "2026-04-28T06:50:00Z",
+      "installStart": "2026-04-28T07:10:00Z",
+      "installEnd": "2026-04-28T09:30:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_mba2dk",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "Installation done, please check system is showing on your side",
+        "at": "2026-04-28T09:35:00Z"
+      },
+      {
+        "id": "chat1_rv0n5l",
+        "from": "sarahk",
+        "fromName": "Sarah Kruger",
+        "fromRole": "client",
+        "message": "Checking now...",
+        "at": "2026-04-28T09:45:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-27T10:00:00Z"
+  },
+  {
+    "id": "JOB-015",
+    "date": "2026-04-27",
+    "time": "10:00",
+    "location": "Gweru Industrial Zone",
+    "country": "Zimbabwe",
+    "clientId": "lunab",
+    "clientName": "Luna Booysen",
+    "clientCompanyName": "Cape Fleet Co",
+    "technician": "emeka",
+    "truck": "CF-040",
+    "serviceType": "Fault Finding",
+    "installationType": "fault",
+    "product": "Tracker Basic",
+    "contactName": "Farai Chirwa",
+    "contactPhone": "+263 77 456 7890",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": true,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": "2026-04-27T08:30:00Z",
+      "travelEnd": "2026-04-27T09:50:00Z",
+      "installStart": "2026-04-27T10:05:00Z",
+      "installEnd": "2026-04-27T12:30:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_3567ae",
+        "from": "emeka",
+        "fromName": "Emeka Osei",
+        "fromRole": "installer",
+        "message": "Fault found and repaired. Unit back online, please confirm on your dashboard.",
+        "at": "2026-04-27T12:35:00Z"
+      },
+      {
+        "id": "chat1_rwhybk",
+        "from": "lunab",
+        "fromName": "Luna Booysen",
+        "fromRole": "client",
+        "message": "I can see the vehicle is tracking. Will officially confirm in the app.",
+        "at": "2026-04-27T12:50:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-26T10:00:00Z"
+  },
+  {
+    "id": "JOB-016",
+    "date": "2026-04-28",
+    "time": "09:00",
+    "location": "Pretoria East Depot",
+    "country": "South Africa",
+    "clientId": "mikeb",
+    "clientName": "Mike Botha",
+    "clientCompanyName": "TransAfrica",
+    "technician": "jakevdm",
+    "truck": "TA-020",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Piet van Wyk",
+    "contactPhone": "+27 82 888 9900",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": "2026-04-28T07:30:00Z",
+      "travelEnd": "2026-04-28T08:55:00Z",
+      "installStart": "2026-04-28T09:05:00Z",
+      "installEnd": null,
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_y7aqun",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "On site, starting installation.",
+        "at": "2026-04-28T09:08:00Z"
+      },
+      {
+        "id": "chat1_hfm19c",
+        "from": "mikeb",
+        "fromName": "Mike Botha",
+        "fromRole": "client",
+        "message": "Thanks for the update",
+        "at": "2026-04-28T09:12:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-27T10:00:00Z"
+  },
+  {
+    "id": "JOB-017",
+    "date": "2026-04-28",
+    "time": "10:00",
+    "location": "Kitwe Mining Compound",
+    "country": "Zambia",
+    "clientId": "mikeb",
+    "clientName": "Mike Botha",
+    "clientCompanyName": "TransAfrica",
+    "technician": "petros",
+    "truck": "TA-025",
+    "serviceType": "Inspection",
+    "installationType": "inspection",
+    "product": "Tracker Advanced",
+    "contactName": "Nsama Chipego",
+    "contactPhone": "+260 96 123 4567",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": "2026-04-28T08:00:00Z",
+      "travelEnd": "2026-04-28T09:45:00Z",
+      "installStart": null,
+      "installEnd": null,
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_ap0r5e",
+        "from": "petros",
+        "fromName": "Petros Dlamini",
+        "fromRole": "installer",
+        "message": "Travelling to site, arrival in 15 minutes",
+        "at": "2026-04-28T09:47:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-27T10:00:00Z"
+  },
+  {
+    "id": "JOB-018",
+    "date": "2026-04-28",
+    "time": "11:00",
+    "location": "Mutare Border Post",
+    "country": "Zimbabwe",
+    "clientId": "lunab",
+    "clientName": "Luna Booysen",
+    "clientCompanyName": "Cape Fleet Co",
+    "technician": "emeka",
+    "truck": "CF-045",
+    "serviceType": "Repair Verification",
+    "installationType": "repair",
+    "product": "Tracker Basic",
+    "contactName": "Stanley Machava",
+    "contactPhone": "+263 71 567 8901",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {
+      "travelStart": "2026-04-28T09:30:00Z",
+      "travelEnd": "2026-04-28T10:50:00Z",
+      "installStart": "2026-04-28T11:05:00Z",
+      "installEnd": null,
+      "standingEntries": [
+        {
+          "id": "st3",
+          "reason": "Vehicle was in use, had to wait for it to return to depot",
+          "durationMinutes": 60,
+          "status": "pending",
+          "adminStatus": "pending",
+          "faultType": "client",
+          "at": "2026-04-28T11:05:00Z"
+        }
+      ]
+    },
+    "chat": [
+      {
+        "id": "chat0_ebbwc5",
+        "from": "emeka",
+        "fromName": "Emeka Osei",
+        "fromRole": "installer",
+        "message": "On site. Truck was late, logging standing time.",
+        "at": "2026-04-28T11:07:00Z"
+      },
+      {
+        "id": "chat1_eqchh2",
+        "from": "lunab",
+        "fromName": "Luna Booysen",
+        "fromRole": "client",
+        "message": "Sorry about that. Driver was on a last-minute run.",
+        "at": "2026-04-28T11:20:00Z"
+      },
+      {
+        "id": "chat2_odra62",
+        "from": "ftadmin",
+        "fromName": "Alex Mercer",
+        "fromRole": "admin",
+        "message": "Standing time noted. Please approve once you confirm the details.",
+        "at": "2026-04-28T11:22:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-27T10:00:00Z"
+  },
+  {
+    "id": "JOB-019",
+    "date": "2026-04-29",
+    "time": "08:00",
+    "location": "Randburg Warehouse",
+    "country": "South Africa",
+    "clientId": "sarahk",
+    "clientName": "Sarah Kruger",
+    "clientCompanyName": "Rapid Logistics",
+    "technician": "jakevdm",
+    "truck": "RL-031",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Anton Pretorius",
+    "contactPhone": "+27 84 321 0099",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {},
+    "chat": [],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-28T10:00:00Z"
+  },
+  {
+    "id": "JOB-020",
+    "date": "2026-04-30",
+    "time": "09:00",
+    "location": "Livingstone Vehicle Park",
+    "country": "Zambia",
+    "clientId": "mikeb",
+    "clientName": "Mike Botha",
+    "clientCompanyName": "TransAfrica",
+    "technician": "petros",
+    "truck": "TA-031",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Basic",
+    "contactName": "Kunda Mwanza",
+    "contactPhone": "+260 97 890 1234",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {},
+    "chat": [],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-28T10:00:00Z"
+  },
+  {
+    "id": "JOB-021",
+    "date": "2026-04-30",
+    "time": "10:30",
+    "location": "Harare Marimba Depot",
+    "country": "Zimbabwe",
+    "clientId": "lunab",
+    "clientName": "Luna Booysen",
+    "clientCompanyName": "Cape Fleet Co",
+    "technician": "emeka",
+    "truck": "CF-051",
+    "serviceType": "Demolishing",
+    "installationType": "demolish",
+    "product": "Tracker Basic",
+    "contactName": "Farai Chirwa",
+    "contactPhone": "+263 77 456 7890",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": false,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {},
+    "chat": [],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-28T10:00:00Z"
+  },
+  {
+    "id": "JOB-022",
+    "date": "2026-04-28",
+    "time": "08:00",
+    "location": "Mafikeng Fleet Centre",
+    "country": "South Africa",
+    "clientId": "lunab",
+    "clientName": "Luna Booysen",
+    "clientCompanyName": "Cape Fleet Co",
+    "technician": "jakevdm",
+    "truck": "CF-055",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Advanced",
+    "contactName": "Refilwe Ntuli",
+    "contactPhone": "+27 76 654 3210",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": false
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": false
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": false,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": false,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": false,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "truckUnavailable": true,
+    "truckUnavailableReason": "Vehicle involved in minor accident yesterday. Currently at panel beater, estimated return in 3 days.",
+    "systemOk": false,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": false,
+    "timeTracking": {},
+    "chat": [
+      {
+        "id": "chat0_r4559d",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "Vehicle is not available — damage reported by client driver.",
+        "at": "2026-04-28T08:15:00Z"
+      },
+      {
+        "id": "chat1_nmfbg6",
+        "from": "lunab",
+        "fromName": "Luna Booysen",
+        "fromRole": "client",
+        "message": "Yes, CF-055 was in a small collision. Out for 3 days minimum.",
+        "at": "2026-04-28T08:30:00Z"
+      },
+      {
+        "id": "chat2_e3cn0f",
+        "from": "ftadmin",
+        "fromName": "Alex Mercer",
+        "fromRole": "admin",
+        "message": "Noted, rescheduling for when vehicle is repaired. We will follow up.",
+        "at": "2026-04-28T08:45:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-27T10:00:00Z"
+  },
+  {
+    "id": "JOB-023",
+    "date": "2026-04-08",
+    "time": "07:30",
+    "location": "Bloemfontein North Yard",
+    "country": "South Africa",
+    "clientId": "mikeb",
+    "clientName": "Mike Botha",
+    "clientCompanyName": "TransAfrica",
+    "technician": "jakevdm",
+    "truck": "TA-006",
+    "serviceType": "New Installation",
+    "installationType": "new-install",
+    "product": "Tracker Basic",
+    "contactName": "Kobus Joubert",
+    "contactPhone": "+27 82 234 5678",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-08T06:00:00Z",
+      "travelEnd": "2026-04-08T07:25:00Z",
+      "installStart": "2026-04-08T07:40:00Z",
+      "installEnd": "2026-04-08T09:30:00Z",
+      "standingEntries": []
+    },
+    "chat": [],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-07T09:00:00Z"
+  },
+  {
+    "id": "JOB-024",
+    "date": "2026-04-18",
+    "time": "08:00",
+    "location": "Polokwane Depot",
+    "country": "South Africa",
+    "clientId": "sarahk",
+    "clientName": "Sarah Kruger",
+    "clientCompanyName": "Rapid Logistics",
+    "technician": "jakevdm",
+    "truck": "RL-034",
+    "serviceType": "Follow-Up",
+    "installationType": "follow-up",
+    "product": "Tracker Advanced",
+    "contactName": "Nicky Potgieter",
+    "contactPhone": "+27 83 987 6543",
+    "checklist": [
+      {
+        "id": "accepted",
+        "title": "Service Acceptance",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "job_accepted",
+            "label": "Accept this service",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "pre",
+        "title": "Pre-Service Confirmation",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "pre_confirm",
+            "label": "Confirm service is still happening",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "service",
+        "title": "Service Check",
+        "who": "installer",
+        "steps": [
+          {
+            "id": "tech_onsite",
+            "label": "Technician confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "truck_onsite",
+            "label": "Vehicle / truck confirmed on-site",
+            "done": true
+          },
+          {
+            "id": "service_complete",
+            "label": "Service complete",
+            "done": true
+          }
+        ]
+      },
+      {
+        "id": "documents",
+        "title": "Post-Service Documents",
+        "who": "both",
+        "steps": [
+          {
+            "id": "doc_job_card",
+            "label": "Job card",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_checklist",
+            "label": "Inspection checklist",
+            "done": true,
+            "requiresUpload": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_images",
+            "label": "Images of job",
+            "done": true,
+            "requiresUpload": true,
+            "multipleFiles": true,
+            "uploadedFiles": []
+          },
+          {
+            "id": "doc_notes",
+            "label": "Additional notes",
+            "done": true,
+            "isTextNote": true
+          }
+        ]
+      }
+    ],
+    "systemOk": true,
+    "systemCheckPending": false,
+    "docCheckPending": false,
+    "clientConfirmed": true,
+    "timeTracking": {
+      "travelStart": "2026-04-18T06:30:00Z",
+      "travelEnd": "2026-04-18T07:55:00Z",
+      "installStart": "2026-04-18T08:05:00Z",
+      "installEnd": "2026-04-18T09:40:00Z",
+      "standingEntries": []
+    },
+    "chat": [
+      {
+        "id": "chat0_u8of62",
+        "from": "jakevdm",
+        "fromName": "Jake van der Merwe",
+        "fromRole": "installer",
+        "message": "Follow-up complete, all good.",
+        "at": "2026-04-18T09:45:00Z"
+      }
+    ],
+    "activity": [
+      {
+        "who": "Alex Mercer",
+        "role": "admin",
+        "event": "Job created",
+        "detail": "",
+        "at": "2026-04-28T15:30:52.976Z"
+      }
+    ],
+    "startDate": "2026-04-17T09:00:00Z"
+  }
+]

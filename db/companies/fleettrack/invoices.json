@@ -1,0 +1,92 @@
+[
+  {
+    "id": "INV-001",
+    "invoiceNumber": "FT-2026-001",
+    "date": "2026-04-05",
+    "amount": 4500,
+    "currency": "ZAR",
+    "clientId": "sarahk",
+    "clientName": "Rapid Logistics",
+    "jobIds": [
+      "JOB-001",
+      "JOB-002",
+      "JOB-003"
+    ],
+    "notes": "April 1 Cape Town trip — 3 vehicles, Tracker Advanced x2 + Basic x1",
+    "status": "paid",
+    "paidAt": "2026-04-12T10:00:00Z",
+    "paidDate": "2026-04-12",
+    "createdAt": "2026-04-03T08:00:00Z"
+  },
+  {
+    "id": "INV-002",
+    "invoiceNumber": "FT-2026-002",
+    "date": "2026-04-12",
+    "amount": 2800,
+    "currency": "ZAR",
+    "clientId": "mikeb",
+    "clientName": "TransAfrica",
+    "jobIds": [
+      "JOB-008",
+      "JOB-023"
+    ],
+    "notes": "April SA jobs for TransAfrica — Joburg + Bloemfontein",
+    "status": "paid",
+    "paidAt": "2026-04-20T09:00:00Z",
+    "paidDate": "2026-04-20",
+    "createdAt": "2026-04-11T08:00:00Z"
+  },
+  {
+    "id": "INV-003",
+    "invoiceNumber": "FT-2026-003",
+    "date": "2026-04-15",
+    "amount": 3200,
+    "currency": "USD",
+    "clientId": "lunab",
+    "clientName": "Cape Fleet Co",
+    "jobIds": [
+      "JOB-006",
+      "JOB-007"
+    ],
+    "notes": "Harare trip — 2 new installations, Tracker Advanced",
+    "status": "invoiced",
+    "paidAt": null,
+    "paidDate": null,
+    "createdAt": "2026-04-13T09:00:00Z"
+  },
+  {
+    "id": "INV-004",
+    "invoiceNumber": "FT-2026-004",
+    "date": "2026-04-20",
+    "amount": 1800,
+    "currency": "USD",
+    "clientId": "lunab",
+    "clientName": "Cape Fleet Co",
+    "jobIds": [
+      "JOB-009"
+    ],
+    "notes": "Ndola warranty check — Zambia",
+    "status": "invoiced",
+    "paidAt": null,
+    "paidDate": null,
+    "createdAt": "2026-04-18T09:00:00Z"
+  },
+  {
+    "id": "INV-005",
+    "invoiceNumber": "FT-2026-005",
+    "date": "2026-04-22",
+    "amount": 2100,
+    "currency": "ZAR",
+    "clientId": "sarahk",
+    "clientName": "Rapid Logistics",
+    "jobIds": [
+      "JOB-010",
+      "JOB-024"
+    ],
+    "notes": "East London + Polokwane jobs — April mid-month",
+    "status": "invoiced",
+    "paidAt": null,
+    "paidDate": null,
+    "createdAt": "2026-04-21T09:00:00Z"
+  }
+]

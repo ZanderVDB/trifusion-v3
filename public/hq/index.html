@@ -558,8 +558,7 @@ async function loginAs(companyId, username) {
 
 function toggleUserCard(cid, username) {
   const panel = document.getElementById('upanel-'+cid+'-'+username);
-  const isOpen = panel.style.display !== 'none';
-  panel.style.display = isOpen ? 'none' : 'block';
+  panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
 }
 function switchToUserEdit(cid, username) {
   document.getElementById('uview-'+cid+'-'+username).style.display='none';

@@ -188,11 +188,11 @@
     <button class="tab-btn" data-tab="invoices" onclick="setMainTab('invoices',this)">Invoices <span class="tab-count" id="tc-invoices">0</span></button>
     <button class="tab-btn" data-tab="summary" onclick="setMainTab('summary',this)">Summary</button>
     <div style="flex:1"></div>
-    <button id="nav-messages-btn" class="tab-btn" onclick="setMainTab('messages',this)" style="position:relative" title="Messages">
-      💬
+    <button id="nav-messages-btn" class="tab-btn" data-tab="messages" onclick="setMainTab('messages',this)" style="position:relative">
+      Messages
       <span id="sidebar-unread" style="display:none;position:absolute;top:2px;right:2px;background:#38bdf8;color:#0a1220;border-radius:99px;font-size:10px;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px">0</span>
     </button>
-    <button id="nav-settings-btn" class="tab-btn" onclick="setMainTab('settings',this)" title="Settings">⚙️</button>
+    <button id="nav-settings-btn" class="tab-btn" data-tab="settings" onclick="setMainTab('settings',this)">Settings</button>
   </div>
 
   <!-- FINANCES tab (new combined tab) -->
@@ -3004,22 +3004,150 @@ async function loadSummaryTab() {
   } catch(e) { el.innerHTML='<div style="color:#f87171;padding:20px">Failed to load summary</div>'; }
 }
 
+// ── INVOICE JOB SELECTOR ──────────────────────────────────────────────────────
+let _invJobGroups=[], _invJobIds=[];
+
+async function _loadInvJobGroups() {
+  try {
+    const r=await apiFetch(capi('/jobs-for-invoicing')); const d=await r.json();
+    const groups={}, solo=[];
+    (Array.isArray(d)?d:[]).forEach(j=>{
+      if(j.tripId){ if(!groups[j.tripId]) groups[j.tripId]=[]; groups[j.tripId].push(j); }
+      else solo.push(j);
+    });
+    _invJobGroups=[];
+    Object.values(groups).forEach(grp=>{ grp.sort((a,b)=>a.id.localeCompare(b.id)); _invJobGroups.push({type:'group',tripId:grp[0].tripId,jobs:grp}); });
+    solo.forEach(j=>_invJobGroups.push({type:'single',jobs:[j]}));
+    _invJobGroups.sort((a,b)=>b.jobs[0].id.localeCompare(a.jobs[0].id));
+  } catch(e){ _invJobGroups=[]; }
+}
+
+function openInvJobSelector() {
+  let ov=document.getElementById('inv-job-selector');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='inv-job-selector';
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:4000;overflow-y:auto;padding:16px;display:none';
+    ov.onclick=e=>{ if(e.target===ov) closeInvJobSelector(); };
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML=`
+    <div style="background:#0a1220;border:1px solid #1e293b;border-radius:16px;max-width:700px;margin:0 auto;padding:24px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:16px;font-weight:700;color:#f1f5f9">Select Jobs to Link</div>
+        <button onclick="closeInvJobSelector()" style="background:none;border:none;color:#64748b;font-size:22px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div style="position:relative;margin-bottom:14px">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#64748b">🔍</span>
+        <input id="invjsel-search" type="text" placeholder="Search by Job ID, vehicle, client, location, installer…"
+          class="form-input" style="padding-left:34px;width:100%" oninput="_renderInvSelectorItems()"/>
+      </div>
+      <div id="invjsel-items" style="display:flex;flex-direction:column;gap:8px;max-height:58vh;overflow-y:auto;padding-right:4px"></div>
+      <div style="margin-top:16px;display:flex;justify-content:flex-end">
+        <button class="btn-primary" onclick="closeInvJobSelector()">Done — Add Selected</button>
+      </div>
+    </div>`;
+  ov.style.display='block';
+  document.body.style.overflow='hidden';
+  _renderInvSelectorItems();
+}
+
+function closeInvJobSelector() {
+  const ov=document.getElementById('inv-job-selector');
+  if(ov) ov.style.display='none';
+  document.body.style.overflow='';
+  _refreshInvJobsList();
+}
+
+function _renderInvSelectorItems() {
+  const el=document.getElementById('invjsel-items');
+  if(!el) return;
+  const q=(document.getElementById('invjsel-search')?.value||'').toLowerCase();
+  const addedIds=new Set(_invJobIds);
+  let groups=_invJobGroups;
+  if(q) groups=groups.filter(grp=>grp.jobs.some(j=>
+    (j.id||'').toLowerCase().includes(q)||(j.truck||'').toLowerCase().includes(q)||
+    (j.location||'').toLowerCase().includes(q)||(j.clientCompanyName||j.clientName||'').toLowerCase().includes(q)||
+    (j.technician||'').toLowerCase().includes(q)||(j.serviceType||'').toLowerCase().includes(q)
+  ));
+  if(!groups.length){ el.innerHTML='<div style="text-align:center;color:#475569;padding:30px;font-size:13px">No available jobs found</div>'; return; }
+  el.innerHTML=groups.map((grp,gi)=>{
+    if(grp.type==='group'){
+      const allAdded=grp.jobs.every(j=>addedIds.has(j.id));
+      return `<div style="background:#0c1a2a;border:1px solid #38bdf840;border-radius:12px;overflow:hidden">
+        <div style="padding:10px 14px;border-bottom:1px solid #1e293b;display:flex;align-items:center;justify-content:space-between">
+          <div><span style="font-size:11px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:.06em">🔗 Linked Group</span><span style="font-size:11px;color:#475569;margin-left:8px">${grp.tripId} · ${grp.jobs.length} jobs</span></div>
+          ${allAdded?`<span style="font-size:12px;color:#34d399;font-weight:600">✓ All Added</span>`:
+            `<button onclick="_invAddGroup(${gi})" style="background:#0c2a3a;border:1px solid #38bdf8;border-radius:6px;padding:5px 14px;color:#38bdf8;font-size:12px;font-weight:600;cursor:pointer">+ Add All</button>`}
+        </div>
+        <div style="padding:8px 14px;display:flex;flex-direction:column;gap:4px">
+          ${grp.jobs.map((j,ji)=>{
+            const isAdded=addedIds.has(j.id);
+            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #0d1829">
+              <div style="flex:1;min-width:0">${_selectorJobInner(j)}</div>
+              ${isAdded?`<span style="font-size:11px;color:#34d399;flex-shrink:0">✓</span>`:
+                `<button onclick="_invAddJob(${gi},${ji})" style="background:#0a2a1e;border:1px solid #34d39980;border-radius:5px;padding:4px 12px;color:#86efac;font-size:11px;cursor:pointer;flex-shrink:0">+ Add</button>`}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    } else {
+      const j=grp.jobs[0]; const isAdded=addedIds.has(j.id);
+      return `<div style="background:#0a1220;border:1px solid ${isAdded?'#34d39940':'#1e293b'};border-radius:10px;overflow:hidden">
+        <div style="padding:10px 14px;display:flex;align-items:center;gap:10px">
+          <div style="flex:1;min-width:0">${_selectorJobInner(j)}</div>
+          ${isAdded?`<span style="font-size:12px;color:#34d399;font-weight:600;flex-shrink:0">✓ Added</span>`:
+            `<button onclick="_invAddJob(${gi},0)" style="background:#0a2a1e;border:1px solid #34d399;border-radius:6px;padding:5px 14px;color:#86efac;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0">+ Add</button>`}
+        </div>
+      </div>`;
+    }
+  }).join('');
+}
+
+function _invAddJob(gi,ji) {
+  const grp=_invJobGroups[gi]; if(!grp||!grp.jobs[ji]) return;
+  const id=grp.jobs[ji].id;
+  if(!_invJobIds.includes(id)) _invJobIds.push(id);
+  _renderInvSelectorItems();
+}
+function _invAddGroup(gi) {
+  const grp=_invJobGroups[gi]; if(!grp) return;
+  grp.jobs.forEach((_,ji)=>_invAddJob(gi,ji));
+}
+function _invRemoveJob(id) {
+  _invJobIds=_invJobIds.filter(x=>x!==id);
+  _refreshInvJobsList();
+}
+function _refreshInvJobsList() {
+  const el=document.getElementById('inv-jobs-list');
+  if(!el) return;
+  if(!_invJobIds.length){
+    el.innerHTML='<div style="color:#334155;font-size:13px;text-align:center;padding:12px 0">No jobs linked yet.</div>';
+    return;
+  }
+  el.innerHTML=_invJobIds.map(id=>{
+    let jd=null;
+    for(const grp of _invJobGroups){ const f=grp.jobs.find(x=>x.id===id); if(f){jd=f;break;} }
+    if(!jd) jd=jobs.find(x=>x.id===id);
+    return `<div style="display:flex;align-items:center;gap:10px;background:#0d1829;border:1px solid #1e293b;border-radius:8px;padding:10px 12px;margin-bottom:6px">
+      <div style="flex:1;min-width:0">${jd?_selectorJobInner(jd):`<span style="font-family:monospace;font-size:12px;font-weight:700;color:#38bdf8">${id}</span>`}</div>
+      <button onclick="_invRemoveJob('${id}')" style="background:#2a0f0f;border:none;border-radius:5px;color:#f87171;font-size:12px;padding:4px 9px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>`;
+  }).join('');
+}
+
 // ── NEW INVOICE MODAL ─────────────────────────────────────────────────────────
 async function openNewInvoiceModal(prefillJobId) {
-  let availJobs=[];
-  try { const r=await apiFetch(capi('/jobs-for-invoicing')); availJobs=await r.json(); } catch(e){}
+  _invJobIds = prefillJobId ? [prefillJobId] : [];
+  await _loadInvJobGroups();
   const today=new Date().toISOString().slice(0,10);
-  const jobOptions=availJobs.map(j=>`<option value="${j.id}"${j.id===prefillJobId?'selected':''}>
-    ${j.id} — ${j.clientCompanyName||j.clientName||'—'} · ${j.location||'—'} · ${j.date||'—'}
-  </option>`).join('');
 
   const html=`
-    <div class="modal fade-in" style="width:min(600px,95vw);max-height:90vh;overflow-y:auto">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div class="modal fade-in" style="width:min(640px,95vw);max-height:90vh;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
         <div class="modal-title">New Invoice</div>
         <button class="btn-secondary btn-sm" onclick="closeModal('invoice-modal')">✕</button>
       </div>
-      <div class="form-grid" style="gap:14px">
+      <div class="form-grid" style="gap:14px;margin-bottom:14px">
         <div class="form-field">
           <label class="form-label">Invoice Number</label>
           <input id="inv-number" class="form-input" placeholder="e.g. INV-2024-001"/>
@@ -3030,7 +3158,7 @@ async function openNewInvoiceModal(prefillJobId) {
         </div>
         <div class="form-field">
           <label class="form-label">Amount</label>
-          <input id="inv-amount" type="number" class="form-input" placeholder="0.00"/>
+          <input id="inv-amount" type="number" class="form-input" placeholder="0.00" step="0.01"/>
         </div>
         <div class="form-field">
           <label class="form-label">Currency</label>
@@ -3039,22 +3167,26 @@ async function openNewInvoiceModal(prefillJobId) {
           </select>
         </div>
       </div>
-      <div class="form-field" style="margin-top:12px">
+      <div class="form-field" style="margin-bottom:14px">
         <label class="form-label">Client Name</label>
         <input id="inv-client" class="form-input" placeholder="Client company name"/>
       </div>
-      <div class="form-field" style="margin-top:12px">
-        <label class="form-label">Link Jobs (optional)</label>
-        <select id="inv-jobs" class="form-input" multiple style="height:120px">
-          ${jobOptions}
-        </select>
-        <div style="font-size:11px;color:#64748b;margin-top:4px">Hold Ctrl/Cmd to select multiple jobs</div>
+
+      <div class="form-field" style="margin-bottom:14px">
+        <label class="form-label">Linked Jobs</label>
+        <div id="inv-jobs-list" style="margin-bottom:8px">
+          <div style="color:#334155;font-size:13px;text-align:center;padding:12px 0">No jobs linked yet.</div>
+        </div>
+        <button onclick="openInvJobSelector()" style="background:#0a2a1e;border:1px dashed #34d39980;border-radius:8px;padding:10px 18px;color:#86efac;font-size:13px;font-weight:600;cursor:pointer;width:100%">
+          + Select Jobs to Link
+        </button>
       </div>
-      <div class="form-field" style="margin-top:12px">
+
+      <div class="form-field" style="margin-bottom:20px">
         <label class="form-label">Notes</label>
         <textarea id="inv-notes" class="form-input" rows="2" placeholder="Optional notes…"></textarea>
       </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px">
+      <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn-secondary" onclick="closeModal('invoice-modal')">Cancel</button>
         <button class="btn-primary" onclick="saveNewInvoice()">Create Invoice</button>
       </div>
@@ -3064,6 +3196,7 @@ async function openNewInvoiceModal(prefillJobId) {
   if(!ov){ ov=document.createElement('div'); ov.id='invoice-modal'; ov.className='modal-overlay'; ov.onclick=e=>{if(e.target===ov)closeModal('invoice-modal');}; document.body.appendChild(ov); }
   ov.innerHTML=html;
   ov.classList.add('open');
+  if(prefillJobId) _refreshInvJobsList();
 }
 
 function closeModal(id) {
@@ -3077,14 +3210,14 @@ async function saveNewInvoice() {
   const amount=parseFloat(document.getElementById('inv-amount')?.value)||0;
   const currency=document.getElementById('inv-currency')?.value||'USD';
   const clientName=document.getElementById('inv-client')?.value.trim()||'';
-  const jobSel=document.getElementById('inv-jobs');
-  const jobIds=jobSel?Array.from(jobSel.selectedOptions).map(o=>o.value):[];
+  const jobIds=[..._invJobIds];
   const notes=document.getElementById('inv-notes')?.value.trim()||'';
 
   const r=await apiFetch(capi('/invoices'),{method:'POST',body:JSON.stringify({invoiceNumber,date,amount,currency,clientName,jobIds,notes})});
   const d=await r.json();
   if(d.ok){
     closeModal('invoice-modal');
+    _invJobIds=[];
     const ir=await apiFetch(capi('/invoices')); invoicesData=await ir.json();
     if(mainTab==='invoices') loadInvoicesTab();
     renderStatGrid();
