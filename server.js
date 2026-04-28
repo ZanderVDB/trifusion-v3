@@ -1673,30 +1673,50 @@ app.put('/api/:companyId/jobs/:id/invoice', requireCompanyAuth('admin'), (req, r
 
 // Financial summary for admin dashboard
 app.get('/api/:companyId/financial-summary', requireCompanyAuth('admin'), (req, res) => {
-  const jobs = getCompanyJobs(req.params.companyId);
-  const summary = { totalJobs:jobs.length, completed:0, invoiced:0, paid:0, outstanding:0, revenue:0, quotesPending:0 };
-  jobs.forEach(j => {
-    const st = computeStatus(j);
-    if (st==='Completed') summary.completed++;
-    if (j.invoice) {
-      const amt = j.invoice.amount||0;
-      if (j.invoice.status==='sent' || j.invoice.status==='paid') summary.invoiced++;
-      if (j.invoice.status==='paid') { summary.paid++; summary.revenue+=amt; }
-      if (j.invoice.status==='sent') summary.outstanding+=amt;
+  const cid    = req.params.companyId;
+  const jobs   = getCompanyJobs(cid);
+  const quotes = getCompanyQuotes(cid);
+
+  const summary = {
+    totalJobs:      jobs.length,
+    completed:      0,
+    totalQuotes:    quotes.length,
+    quotesDraft:    0, quotesSent:     0, quotesAccepted: 0, quotesRejected: 0,
+    invoiced:       0, paid:           0,
+    totalInvoiced:  0, totalPaid:      0, outstanding:    0
+  };
+
+  jobs.forEach(j => { if (computeStatus(j) === 'Completed') summary.completed++; });
+
+  quotes.forEach(q => {
+    const total = (q.jobs||[]).reduce((s,jq) => s + (jq.amount||0), 0);
+    switch(q.status) {
+      case 'draft':    summary.quotesDraft++;    break;
+      case 'sent':     summary.quotesSent++;     summary.outstanding += total; break;
+      case 'accepted': summary.quotesAccepted++; summary.outstanding += total; break;
+      case 'rejected': summary.quotesRejected++; break;
+      case 'invoiced': summary.invoiced++;       summary.totalInvoiced += total; summary.outstanding += total; break;
+      case 'paid':     summary.paid++;           summary.totalPaid    += total; summary.totalInvoiced += total; break;
     }
-    if (j.quote?.status==='sent') summary.quotesPending++;
   });
 
-  // Monthly breakdown (last 12 months)
+  // Monthly breakdown — paid quotes
   const monthly = {};
-  jobs.forEach(j => {
-    if (j.invoice?.status==='paid' && j.invoice.paidAt) {
-      const mo = j.invoice.paidAt.slice(0,7);
+  quotes.forEach(q => {
+    if (q.status === 'paid' && q.paidAt) {
+      const mo    = q.paidAt.slice(0,7);
+      const total = (q.jobs||[]).reduce((s,jq) => s + (jq.amount||0), 0);
       if (!monthly[mo]) monthly[mo] = 0;
-      monthly[mo] += j.invoice.amount||0;
+      monthly[mo] += total;
     }
   });
-  res.json({ ok:true, summary, monthly });
+
+  // Determine most-used currency
+  const currencies = {};
+  quotes.forEach(q => { if (q.currency) currencies[q.currency] = (currencies[q.currency]||0)+1; });
+  const currency = Object.entries(currencies).sort((a,b)=>b[1]-a[1])[0]?.[0] || '';
+
+  res.json({ ok: true, summary, monthly, currency });
 });
 
 // ── PHASE 4 — JOB CHAT ───────────────────────────────────────────────────────
@@ -1971,6 +1991,115 @@ function getAdminEmail(cid) {
 function jobLink(html) {
   return html + `<p style="margin-top:16px"><a href="${BASE_URL}" style="background:#1e4d8c;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600">Open Trifusion Portal →</a></p>`;
 }
+// ── QUOTES SYSTEM ─────────────────────────────────────────────────────────────
+function getCompanyQuotes(cid) {
+  return readJSON(companyFile(cid, 'quotes.json'), []);
+}
+function saveCompanyQuotes(cid, quotes) {
+  writeJSON(companyFile(cid, 'quotes.json'), quotes);
+}
+function nextQuoteId(cid) {
+  const quotes = getCompanyQuotes(cid);
+  const nums = quotes.map(q => parseInt((q.id||'').replace(/\D/g,''))||0);
+  return 'QUO-' + String(Math.max(0, ...nums) + 1).padStart(3, '0');
+}
+
+// List all quotes
+app.get('/api/:companyId/quotes', requireCompanyAuth('admin'), (req, res) => {
+  res.json(getCompanyQuotes(req.params.companyId));
+});
+
+// Create quote
+app.post('/api/:companyId/quotes', requireCompanyAuth('admin'), (req, res) => {
+  const cid = req.params.companyId;
+  const { clientId='', clientName='', clientCompanyName='', currency='USD', notes='', jobs=[] } = req.body;
+  const id = nextQuoteId(cid);
+  const quote = {
+    id, status: 'draft',
+    clientId, clientName, clientCompanyName,
+    currency, notes,
+    jobs: Array.isArray(jobs) ? jobs : [],
+    createdAt:  new Date().toISOString().slice(0,10),
+    sentAt:     null, acceptedAt: null, rejectedAt: null,
+    invoicedAt: null, paidAt:     null,
+    invoiceNo:  null, invoiceDate: null, invoiceFileUrl: null
+  };
+  const all = getCompanyQuotes(cid);
+  all.push(quote);
+  saveCompanyQuotes(cid, all);
+  res.json({ ok: true, id });
+});
+
+// Update quote (full replace, preserving id + createdAt)
+app.put('/api/:companyId/quotes/:quoteId', requireCompanyAuth('admin'), (req, res) => {
+  const cid = req.params.companyId;
+  const all = getCompanyQuotes(cid);
+  const idx = all.findIndex(q => q.id === req.params.quoteId);
+  if (idx < 0) return res.status(404).json({ error: 'Not found' });
+  const { id, createdAt } = all[idx];
+  all[idx] = { ...all[idx], ...req.body, id, createdAt };
+  saveCompanyQuotes(cid, all);
+  res.json({ ok: true });
+});
+
+// Delete quote
+app.delete('/api/:companyId/quotes/:quoteId', requireCompanyAuth('admin'), (req, res) => {
+  const cid = req.params.companyId;
+  saveCompanyQuotes(cid, getCompanyQuotes(cid).filter(q => q.id !== req.params.quoteId));
+  res.json({ ok: true });
+});
+
+// Jobs available for quoting — returns all jobs grouped by tripId, with inQuoteId annotation
+app.get('/api/:companyId/jobs-for-quoting', requireCompanyAuth('admin'), (req, res) => {
+  const cid    = req.params.companyId;
+  const jobs   = getCompanyJobs(cid).map(j => ({ ...j, status: computeStatus(j) }));
+  const quotes = getCompanyQuotes(cid);
+  // Build jobId → quoteId map
+  const inQuote = {};
+  quotes.forEach(q => (q.jobs||[]).forEach(jq => { inQuote[jq.jobId] = q.id; }));
+  // Group by tripId
+  const groups = {};
+  const solo   = [];
+  jobs.forEach(j => {
+    const obj = { ...j, inQuoteId: inQuote[j.id] || null };
+    if (j.tripId) {
+      if (!groups[j.tripId]) groups[j.tripId] = [];
+      groups[j.tripId].push(obj);
+    } else {
+      solo.push(obj);
+    }
+  });
+  const result = [];
+  Object.values(groups).forEach(grp => {
+    grp.sort((a,b) => a.id.localeCompare(b.id));
+    result.push({ type: 'group', tripId: grp[0].tripId, jobs: grp });
+  });
+  solo.forEach(j => result.push({ type: 'single', jobs: [j] }));
+  // Sort newest job ID first
+  result.sort((a,b) => b.jobs[0].id.localeCompare(a.jobs[0].id));
+  res.json(result);
+});
+
+// Upload invoice file for a quote
+app.post('/api/:companyId/quotes/:quoteId/invoice-upload', requireCompanyAuth('admin'), upload.single('file'), async (req, res) => {
+  const cid = req.params.companyId;
+  const all = getCompanyQuotes(cid);
+  const q   = all.find(x => x.id === req.params.quoteId);
+  if (!q) return res.status(404).json({ error: 'Not found' });
+  if (!req.file) return res.json({ ok: false, error: 'No file provided' });
+  try {
+    const { uploadFile } = require('./storage');
+    const ts       = Date.now();
+    const safeName = ts + '_invoice_' + req.file.originalname.replace(/[^a-zA-Z0-9._-]/g,'_');
+    const result   = await uploadFile(cid, req.params.quoteId, safeName, req.file.buffer, req.file.mimetype);
+    q.invoiceFileUrl = result.url;
+    saveCompanyQuotes(cid, all);
+    res.json({ ok: true, fileUrl: result.url });
+  } catch(e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ── PHASE 5 — JOB CARD DOWNLOAD ──────────────────────────────────────────────
 app.get('/api/:companyId/jobs/:id/job-card', requireCompanyAuth('admin'), (req, res) => {
   const cid  = req.params.companyId;
