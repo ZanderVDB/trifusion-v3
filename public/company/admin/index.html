@@ -70,6 +70,9 @@
   .jdt-btn.active{color:#38bdf8;border-bottom-color:#38bdf8}
   .hide-mobile{display:inline}.show-mobile{display:none}.show-mobile{display:inline}.overview-cols{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}}
 
+  #detail-modal-inner { display:flex; gap:16px; align-items:flex-start; width:min(1280px,100%); }
+  #job-chat-float { width:300px; flex-shrink:0; position:sticky; top:20px; background:#0a1220; border:1px solid #1e293b; border-radius:16px; padding:20px; }
+
   /* ── MOBILE RESPONSIVE ─────────────────────────────────── */
   @media (max-width: 768px) {
     /* Topbar: hide centre text, compress buttons */
@@ -108,6 +111,9 @@
     .step-row { gap: 8px; padding: 8px 12px; }
     .step-label { font-size: 12px; }
     .section-header { padding: 10px 12px; }
+
+    #detail-modal-inner { flex-direction:column; }
+    #job-chat-float { width:100% !important; position:static; order:-1; }
 
     /* Modals: full width */
     .modal-overlay { padding: 8px; align-items: flex-end; }
@@ -280,16 +286,20 @@
 
 <!-- JOB DETAIL MODAL -->
 <div class="modal-overlay" id="detail-modal" onclick="if(event.target===this)closeDetail()">
-  <div class="modal fade-in" style="width:min(960px,95vw);max-height:92vh;overflow-y:auto">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px">
-      <div class="modal-title" style="margin:0" id="modal-job-title">Job Detail</div>
-      <div style="display:flex;gap:8px">
-        <button class="btn-danger btn-sm" onclick="deleteJob(currentJobId)">🗑 Delete</button>
-        <button id="force-complete-btn" style="background:#451a00;border:1px solid #fbbf24;border-radius:7px;padding:5px 12px;color:#fbbf24;font-size:12px;cursor:pointer;display:none" onclick="forceComplete(currentJobId)">⚠ Force Complete</button>
-        <button class="btn-secondary btn-sm" onclick="closeDetail()">✕ Close</button>
+  <div id="detail-modal-inner" onclick="if(event.target===this)closeDetail()">
+    <div class="modal fade-in" id="detail-card" style="flex:1;min-width:0;max-width:960px;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px">
+        <div class="modal-title" style="margin:0" id="modal-job-title">Job Detail</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-danger btn-sm" onclick="deleteJob(currentJobId)">🗑 Delete</button>
+          <button id="force-complete-btn" style="background:#451a00;border:1px solid #fbbf24;border-radius:7px;padding:5px 12px;color:#fbbf24;font-size:12px;cursor:pointer;display:none" onclick="forceComplete(currentJobId)">⚠ Force Complete</button>
+          <button class="btn-secondary btn-sm" onclick="closeDetail()">✕ Close</button>
+        </div>
       </div>
+      <div id="modal-job-content"></div>
     </div>
-    <div id="modal-job-content"></div>
+    <!-- Floating chat panel outside job card -->
+    <div id="job-chat-float" style="display:none"></div>
   </div>
 </div>
 
@@ -748,17 +758,18 @@ function openDetail(id){
 
 function setJobDetailTab(tab) {
   _jdTab = tab;
-  ['overview','edit','checklist','finances','chat'].forEach(t => {
+  ['overview','edit','checklist','finances'].forEach(t => {
     const btn = document.getElementById('jdt-btn-'+t);
     if (btn) btn.classList.toggle('active', t===tab);
     const panel = document.getElementById('jdt-panel-'+t);
     if (panel) panel.style.display = t===tab?'block':'none';
   });
-  if (tab==='chat' && currentJobId) chatLoad(currentJobId);
 }
 function closeDetail(){
   window._editUnlocked = {};
   document.getElementById('detail-modal').classList.remove('open');
+  const cf = document.getElementById('job-chat-float');
+  if (cf) { cf.style.display='none'; cf.innerHTML=''; }
   currentJobId=null;
   loadAll(); // refresh badges on close
 }
@@ -1175,7 +1186,6 @@ function renderModalContent(id){
       <button id="jdt-btn-edit"      class="jdt-btn ${_jdTab==='edit'     ?'active':''}" onclick="setJobDetailTab('edit')">Edit</button>
       <button id="jdt-btn-checklist" class="jdt-btn ${_jdTab==='checklist'?'active':''}" onclick="setJobDetailTab('checklist')">Checklist</button>
       <button id="jdt-btn-finances"  class="jdt-btn ${_jdTab==='finances' ?'active':''}" onclick="setJobDetailTab('finances')">Finances</button>
-      <button id="jdt-btn-chat"      class="jdt-btn ${_jdTab==='chat'     ?'active':''}" onclick="setJobDetailTab('chat')">Chat${chatTabDot}</button>
     </div>
 
     <!-- OVERVIEW PANEL -->
@@ -1209,13 +1219,24 @@ function renderModalContent(id){
       ${tripsHTML}
     </div>
 
-    <!-- CHAT PANEL -->
-    <div id="jdt-panel-chat" style="display:${_jdTab==='chat'?'block':'none'}">
-      ${chatHTML}
-    </div>`;
+    `;
 
-  if (_jdTab==='chat') setTimeout(()=>chatLoad(j.id),50);
-  else if (_jdTab==='overview') setTimeout(()=>chatLoad(j.id),50); // preload for dot
+  // Populate external chat panel
+  const chatFloat = document.getElementById('job-chat-float');
+  if (chatFloat) {
+    chatFloat.style.display = 'block';
+    chatFloat.innerHTML = `
+      <div style="font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:14px">💬 Job Chat${chatTabDot}</div>
+      <div id="chat-msgs-${j.id}" style="height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:12px;padding:4px 0">
+        <div style="font-size:12px;color:#334155;text-align:center">Loading…</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <input id="chat-input-${j.id}" class="form-input" placeholder="Type a message…" style="flex:1;font-size:13px"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();chatSend('${j.id}')}"/>
+        <button onclick="chatSend('${j.id}')" style="background:#0c2a3a;border:1px solid #38bdf8;border-radius:8px;padding:8px 16px;color:#38bdf8;font-size:13px;cursor:pointer;flex-shrink:0">Send</button>
+      </div>`;
+    setTimeout(()=>chatLoad(j.id), 50);
+  }
 }
 
 
@@ -1347,9 +1368,19 @@ function setJobCategory(cat) {
 function populateTypeDropdown() {
   const sel = document.getElementById('an-type');
   if (!sel || !_formPricing) return;
-  const types = _jobCategory==='Installation'
-    ? (_formPricing.installationTypes||[])
-    : (_formPricing.serviceTypes||[]);
+  let types;
+  if (_jobCategory==='Installation') {
+    // Check if selected product has embedded sub-types
+    const selectedProdId = document.getElementById('an-product')?.value;
+    const selectedProd = (_formPricing.products||[]).find(p=>p.id===selectedProdId);
+    if (selectedProd?.installationTypes?.length) {
+      types = selectedProd.installationTypes;
+    } else {
+      types = _formPricing.installationTypes||[];
+    }
+  } else {
+    types = _formPricing.serviceTypes||[];
+  }
   sel.innerHTML = '<option value="">Select type…</option>';
   types.forEach(t => { sel.innerHTML += `<option value="${t.id}">${t.name}</option>`; });
 }
@@ -1529,6 +1560,9 @@ async function submitAdminJob() {
     body: JSON.stringify({
       location,
       truck:            document.getElementById('an-truck').value.trim(),
+      vehicleMake:      document.getElementById('an-vehicle-make')?.value.trim()||null,
+      vehicleModel:     document.getElementById('an-vehicle-model')?.value.trim()||null,
+      vehicleYear:      document.getElementById('an-vehicle-year')?.value.trim()||null,
       contactName:      document.getElementById('an-contact-name').value.trim(),
       contactPhone:     document.getElementById('an-contact-phone').value.trim(),
       country,
@@ -1943,6 +1977,11 @@ function switchSettingsTab(tab) {
   }
 }
 
+function currencySymbol(code) {
+  const map={USD:'$',ZAR:'R',ZMW:'K',ZWL:'Z$',EUR:'€',GBP:'£',KES:'KSh',NGN:'₦',GHS:'₵'};
+  return map[code]||code;
+}
+
 // ── PRICING UI ────────────────────────────────────────────────────────────────
 function renderPricingUI() {
   if (!_pricing) return;
@@ -1962,34 +2001,80 @@ function renderProductsList() {
   const list = document.getElementById('p-products-list');
   if (!list || !_pricing) return;
   list.innerHTML = '';
+  const sym = currencySymbol(_pricing.currency||'USD');
   (_pricing.products || []).forEach((p, i) => {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:8px;align-items:center';
-    row.innerHTML = `
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'margin-bottom:10px;border:1px solid #1e293b;border-radius:10px;overflow:hidden';
+    // Product header row
+    const hasSubTypes = p.installationTypes && p.installationTypes.length > 0;
+    const headerDiv = document.createElement('div');
+    headerDiv.style.cssText = 'display:flex;gap:8px;align-items:center;padding:8px 10px;background:#050b14';
+    headerDiv.innerHTML = `
       <input class="form-input" style="flex:1;font-size:13px" value="${p.name||''}"
         oninput="_pricing.products[${i}].name=this.value" placeholder="Product name"/>
+      <button onclick="addProductSubType(${i})" title="Add installation sub-type" style="background:none;border:1px solid #334155;border-radius:6px;cursor:pointer;color:#94a3b8;font-size:11px;padding:4px 8px;flex-shrink:0;white-space:nowrap">+ Sub-type</button>
       <button onclick="removePricingItem('products',${i})" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:16px;padding:2px 6px;flex-shrink:0">✕</button>
     `;
-    list.appendChild(row);
+    wrapper.appendChild(headerDiv);
+    // Sub-types
+    if (p.installationTypes && p.installationTypes.length > 0) {
+      const subHeaderDiv = document.createElement('div');
+      subHeaderDiv.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.05em;padding:6px 10px 4px;background:#0a1220';
+      subHeaderDiv.innerHTML = '<span>Sub-type Name</span><span style="text-align:center">Price</span><span style="text-align:center">Hours</span><span></span>';
+      wrapper.appendChild(subHeaderDiv);
+      p.installationTypes.forEach((st, si) => {
+        const stRow = document.createElement('div');
+        stRow.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;align-items:center;padding:4px 10px;background:#0a1220;border-top:1px solid #1e293b';
+        stRow.innerHTML = `
+          <input class="form-input" style="font-size:12px" value="${st.name||''}"
+            oninput="_pricing.products[${i}].installationTypes[${si}].name=this.value" placeholder="Type name"/>
+          <div style="display:flex;align-items:center;gap:3px">
+            <span style="font-size:11px;color:#94a3b8;flex-shrink:0">${sym}</span>
+            <input class="form-input" style="font-size:12px;text-align:center" type="number" min="0" step="0.01"
+              value="${st.price!=null?st.price:''}" placeholder="0"
+              oninput="_pricing.products[${i}].installationTypes[${si}].price=this.value===''?null:parseFloat(this.value)"/>
+          </div>
+          <div style="display:flex;align-items:center;gap:3px">
+            <input class="form-input" style="font-size:12px;text-align:center" type="number" min="0" step="0.5"
+              value="${st.hours!=null?st.hours:''}" placeholder="0"
+              oninput="_pricing.products[${i}].installationTypes[${si}].hours=this.value===''?null:parseFloat(this.value)"/>
+            <span style="font-size:11px;color:#94a3b8;flex-shrink:0">h</span>
+          </div>
+          <button onclick="removeProductSubType(${i},${si})" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:14px;padding:2px 4px">✕</button>
+        `;
+        wrapper.appendChild(stRow);
+      });
+    }
+    list.appendChild(wrapper);
   });
+}
+function addProductSubType(productIdx) {
+  if (!_pricing.products[productIdx].installationTypes) _pricing.products[productIdx].installationTypes=[];
+  _pricing.products[productIdx].installationTypes.push({id:'subtype-'+Date.now(),name:'',price:null,hours:null});
+  renderProductsList();
+}
+function removeProductSubType(productIdx, subTypeIdx) {
+  _pricing.products[productIdx].installationTypes.splice(subTypeIdx,1);
+  renderProductsList();
 }
 
 function renderInstTypesList() {
   const list = document.getElementById('p-inst-types-list');
   if (!list || !_pricing) return;
   list.innerHTML = '';
+  const sym = currencySymbol(_pricing.currency||'USD');
   (_pricing.installationTypes || []).forEach((t, i) => {
     const row = document.createElement('div');
-    row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:6px;align-items:center';
+    row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr auto;gap:6px;align-items:center';
     row.innerHTML = `
       <input class="form-input" style="font-size:13px" value="${t.name||''}"
         oninput="_pricing.installationTypes[${i}].name=this.value" placeholder="Type name"/>
-      <div style="display:flex;align-items:center;gap:6px">
-        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#94a3b8;white-space:nowrap;cursor:pointer">
-          <input type="checkbox" ${t.useServiceRate?'checked':''} onchange="_pricing.installationTypes[${i}].useServiceRate=this.checked;renderInstTypesList()" style="cursor:pointer"/>
-          Svc rate
+      <div style="display:flex;align-items:center;gap:4px;justify-content:center">
+        <label style="display:flex;align-items:center;gap:3px;font-size:11px;color:#94a3b8;cursor:pointer;flex-shrink:0">
+          <input type="checkbox" ${t.useServiceRate?'checked':''} onchange="_pricing.installationTypes[${i}].useServiceRate=this.checked;renderInstTypesList()" style="cursor:pointer"/>Svc
         </label>
-        <input class="form-input" style="font-size:13px;${t.useServiceRate?'opacity:.4;pointer-events:none':''}" type="number" min="0" step="0.01"
+        <span style="font-size:11px;color:#94a3b8;flex-shrink:0;${t.useServiceRate?'opacity:.4':''}">${sym}</span>
+        <input class="form-input" style="font-size:13px;text-align:center;${t.useServiceRate?'opacity:.4;pointer-events:none':''}" type="number" min="0" step="0.01"
           value="${t.price!=null?t.price:''}" placeholder="Price"
           oninput="_pricing.installationTypes[${i}].price=this.value===''?null:parseFloat(this.value)"/>
       </div>
@@ -2003,6 +2088,7 @@ function renderSvcTypesList() {
   const list = document.getElementById('p-svc-types-list');
   if (!list || !_pricing) return;
   list.innerHTML = '';
+  const sym = currencySymbol(_pricing.currency||'USD');
   (_pricing.serviceTypes || []).forEach((t, i) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;align-items:center';
@@ -2015,9 +2101,12 @@ function renderSvcTypesList() {
           Yes
         </label>
       </div>
-      <input class="form-input" style="font-size:13px;${t.useServiceRate?'opacity:.4;pointer-events:none':''}" type="number" min="0" step="0.01"
-        value="${t.price!=null?t.price:''}" placeholder="Price or 0"
-        oninput="_pricing.serviceTypes[${i}].price=this.value===''?null:parseFloat(this.value)"/>
+      <div style="display:flex;align-items:center;gap:4px;justify-content:center">
+        <span style="font-size:11px;color:#94a3b8;flex-shrink:0;${t.useServiceRate?'opacity:.4':''}">${sym}</span>
+        <input class="form-input" style="font-size:13px;text-align:center;${t.useServiceRate?'opacity:.4;pointer-events:none':''}" type="number" min="0" step="0.01"
+          value="${t.price!=null?t.price:''}" placeholder="0"
+          oninput="_pricing.serviceTypes[${i}].price=this.value===''?null:parseFloat(this.value)"/>
+      </div>
       <button onclick="removePricingItem('serviceTypes',${i})" style="background:none;border:none;cursor:pointer;color:#f87171;font-size:16px;padding:2px 6px">✕</button>
     `;
     list.appendChild(row);
@@ -3721,6 +3810,18 @@ checkAuth();
         <input class="form-input" id="an-truck" placeholder="Can be added later"/>
       </div>
       <div class="form-field">
+        <label class="form-label">Vehicle Make</label>
+        <input class="form-input" id="an-vehicle-make" placeholder="e.g. Toyota"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Vehicle Model</label>
+        <input class="form-input" id="an-vehicle-model" placeholder="e.g. Hilux"/>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Vehicle Year</label>
+        <input class="form-input" id="an-vehicle-year" type="number" placeholder="e.g. 2022" min="1990" max="2099"/>
+      </div>
+      <div class="form-field">
         <label class="form-label">Contact Person</label>
         <input class="form-input" id="an-contact-name" placeholder="On-site contact name"/>
       </div>
@@ -3799,7 +3900,7 @@ checkAuth();
       <!-- Product -->
       <div class="form-field" style="grid-column:1/-1">
         <label class="form-label">Product <span style="color:#f87171">*</span></label>
-        <select class="form-input" id="an-product">
+        <select class="form-input" id="an-product" onchange="populateTypeDropdown()">
           <option value="">Loading products…</option>
         </select>
       </div>

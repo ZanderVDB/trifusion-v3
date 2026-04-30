@@ -734,39 +734,51 @@ function renderDetail(id){
     ${isAccepted && !j.clientConfirmed ? `
     <div class="card" style="margin-bottom:14px">
       <div class="card-title" style="margin-bottom:12px">⏱ Time Tracking</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-        ${(()=>{
-          const tt = j.timeTracking||{};
-          function timeBtn(label, onclick, color='#38bdf8') {
-            return `<button onclick="${onclick}" style="width:100%;padding:9px 6px;border-radius:8px;border:1px solid ${color}33;background:${color}11;color:${color};font-size:12px;font-weight:600;cursor:pointer">${label}</button>`;
-          }
-          function doneChip(label) { return `<div style="font-size:12px;color:#34d399;font-weight:600">✓ ${label}</div>`; }
-          function fmtT(iso) { return iso ? new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : ''; }
-          function dur(a,b) { if(!a||!b) return ''; const m=Math.round((new Date(b)-new Date(a))/60000); return m>=60?Math.floor(m/60)+'h '+( m%60?m%60+'m':''):m+'m'; }
-
-          const travelBlock = tt.travelEnd
-            ? doneChip('Travel: '+dur(tt.travelStart,tt.travelEnd))
-            : tt.travelStart
-            ? `<div style="font-size:11px;color:#94a3b8;margin-bottom:5px">Started ${fmtT(tt.travelStart)}</div>${timeBtn('🏁 End Travel',"logTime('${j.id}','travel_end')")}`
-            : timeBtn('🚗 Start Travel',"logTime('${j.id}','travel_start')");
-
-          const installBlock = tt.installEnd
-            ? doneChip('Install: '+dur(tt.installStart,tt.installEnd))
-            : tt.installStart
-            ? `<div style="font-size:11px;color:#94a3b8;margin-bottom:5px">Started ${fmtT(tt.installStart)}</div>${timeBtn('✅ End Install',"logTime('${j.id}','install_end')","#34d399")}`
-            : timeBtn('⏱ Start Install',"logTime('${j.id}','install_start')","#34d399");
-
-          return `
-            <div style="background:#050b14;border:1px solid #1e293b;border-radius:8px;padding:10px">
-              <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Travel</div>
-              ${travelBlock}
+      ${(()=>{
+        const tt = j.timeTracking||{};
+        function toLocalTime(iso) {
+          if(!iso) return '';
+          const d=new Date(iso);
+          return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+        }
+        function dur(a,b) {
+          if(!a||!b) return '';
+          const m=Math.round((new Date(b)-new Date(a))/60000);
+          return m>=60?Math.floor(m/60)+'h '+(m%60?m%60+'m':''):m+'m';
+        }
+        const travelDur = tt.travelStart&&tt.travelEnd ? ' ('+dur(tt.travelStart,tt.travelEnd)+')' : '';
+        const installDur = tt.installStart&&tt.installEnd ? ' ('+dur(tt.installStart,tt.installEnd)+')' : '';
+        return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div style="background:#050b14;border:1px solid #1e293b;border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🚗 Travel${travelDur}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div>
+                <div style="font-size:10px;color:#64748b;margin-bottom:3px">Start</div>
+                <input id="tt-ts-${j.id}" type="time" class="form-input" style="font-size:12px;padding:5px 8px" value="${toLocalTime(tt.travelStart)}"/>
+              </div>
+              <div>
+                <div style="font-size:10px;color:#64748b;margin-bottom:3px">End</div>
+                <input id="tt-te-${j.id}" type="time" class="form-input" style="font-size:12px;padding:5px 8px" value="${toLocalTime(tt.travelEnd)}"/>
+              </div>
             </div>
-            <div style="background:#050b14;border:1px solid #1e293b;border-radius:8px;padding:10px">
-              <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Installation</div>
-              ${installBlock}
-            </div>`;
-        })()}
-      </div>
+          </div>
+          <div style="background:#050b14;border:1px solid #1e293b;border-radius:8px;padding:10px">
+            <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">⏱ Installation${installDur}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+              <div>
+                <div style="font-size:10px;color:#64748b;margin-bottom:3px">Start</div>
+                <input id="tt-is-${j.id}" type="time" class="form-input" style="font-size:12px;padding:5px 8px" value="${toLocalTime(tt.installStart)}"/>
+              </div>
+              <div>
+                <div style="font-size:10px;color:#64748b;margin-bottom:3px">End</div>
+                <input id="tt-ie-${j.id}" type="time" class="form-input" style="font-size:12px;padding:5px 8px" value="${toLocalTime(tt.installEnd)}"/>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button onclick="saveJobTimes('${j.id}')" style="width:100%;padding:8px;border-radius:8px;border:1px solid #38bdf833;background:#38bdf811;color:#38bdf8;font-size:12px;font-weight:600;cursor:pointer;margin-bottom:12px">💾 Save Times</button>`;
+      })()}
       <div style="border-top:1px solid #1e293b;padding-top:10px">
         <div style="font-size:11px;color:#64748b;margin-bottom:6px;font-weight:600">⏸ Log Standing Time (delays / waiting)</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -1110,6 +1122,32 @@ async function markProblemFixed(jobId) {
   renderDetail(jobId);
 }
 // ── TIME TRACKING ─────────────────────────────────────────────────────────────
+async function saveJobTimes(jobId) {
+  function toISO(timeStr) {
+    if (!timeStr) return null;
+    const today = new Date().toISOString().slice(0,10);
+    return new Date(today+'T'+timeStr+':00').toISOString();
+  }
+  const travelStart  = document.getElementById('tt-ts-'+jobId)?.value;
+  const travelEnd    = document.getElementById('tt-te-'+jobId)?.value;
+  const installStart = document.getElementById('tt-is-'+jobId)?.value;
+  const installEnd   = document.getElementById('tt-ie-'+jobId)?.value;
+  const res = await apiFetch(capi('/jobs/'+jobId+'/time-entry'), {
+    method:'POST', body:JSON.stringify({
+      travelStart:  toISO(travelStart),
+      travelEnd:    toISO(travelEnd),
+      installStart: toISO(installStart),
+      installEnd:   toISO(installEnd)
+    })
+  });
+  const data = await res.json();
+  if (data.ok) {
+    const updated = await (await apiFetch(capi('/jobs/'+jobId))).json();
+    const idx = jobs.findIndex(j=>j.id===jobId);
+    if (idx>=0) jobs[idx]=updated;
+    renderDetail(jobId);
+  } else { alert(data.error||'Error saving times'); }
+}
 async function logTime(jobId, event) {
   const res  = await apiFetch(capi(`/jobs/${jobId}/time-log`), { method:'POST', body:JSON.stringify({event}) });
   const data = await res.json();

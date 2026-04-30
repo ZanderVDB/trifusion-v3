@@ -1016,6 +1016,22 @@ app.delete('/api/:companyId/jobs/:id', requireCompanyAuth('admin'), (req, res) =
 
 // ── PHASE 2 — TIME TRACKING ───────────────────────────────────────────────────
 
+// Installer sets explicit times for travel/install (direct time entry)
+app.post('/api/:companyId/jobs/:id/time-entry', requireCompanyAuth(), (req, res) => {
+  const { travelStart, travelEnd, installStart, installEnd } = req.body;
+  const job = jobAction(req.params.companyId, req.params.id, j => {
+    if (!j.timeTracking) j.timeTracking = {};
+    if (travelStart  !== undefined) j.timeTracking.travelStart  = travelStart;
+    if (travelEnd    !== undefined) j.timeTracking.travelEnd    = travelEnd;
+    if (installStart !== undefined) j.timeTracking.installStart = installStart;
+    if (installEnd   !== undefined) j.timeTracking.installEnd   = installEnd;
+    addActivity(j, req.user.name, req.user.role, '⏱ Times updated');
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  broadcast(req.params.companyId, { type:'job_update', jobId:req.params.id });
+  res.json({ ok:true });
+});
+
 // Installer logs a time event (travel_start, travel_end, install_start, install_end)
 app.post('/api/:companyId/jobs/:id/time-log', requireCompanyAuth(), (req, res) => {
   const { event } = req.body;
@@ -1358,6 +1374,22 @@ app.post('/api/:companyId/jobs/:id/truck-unavailable/undo', requireCompanyAuth('
   });
   if (!job) return res.status(404).json({ error:'Not found' });
   broadcast(cid, { type:'refresh' });
+  res.json({ ok:true });
+});
+
+// Client edits job fields while status is Pending Acceptance
+app.post('/api/:companyId/jobs/:id/client-update', requireCompanyAuth('client'), (req, res) => {
+  const cid = req.params.companyId;
+  const job = jobAction(cid, req.params.id, j => {
+    if (j.status !== 'Pending Acceptance') return; // only allowed before acceptance
+    const allowed = ['location','truck','contactName','contactPhone','date','time','vehicleMake','vehicleModel','vehicleYear'];
+    allowed.forEach(field => {
+      if (req.body[field] !== undefined) j[field] = req.body[field] || null;
+    });
+    addActivity(j, req.user.name, req.user.role, '✏️ Job details updated by client');
+  });
+  if (!job) return res.status(404).json({ error:'Not found' });
+  broadcast(cid, { type:'job_update', jobId:req.params.id });
   res.json({ ok:true });
 });
 

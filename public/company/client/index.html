@@ -640,22 +640,69 @@ function renderDetail(id) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 20px">
           ${[['Location',j.location],['Country',j.country],['Date',j.date+(j.time?' '+j.time:'')],
              ['Service',j.serviceType||'Installation'],['Unit',j.serviceType==='Inspection'?'—':j.unitType],['Installer',j.technician],
+             ['Truck',j.truck||'TBC'],
              ...(j.contactName||j.contactPhone ? [['Contact Person',j.contactName||'—'],['Contact Number',j.contactPhone||'—']] : [])]
             .map(([k,v])=>`<div><div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">${k}</div>
               <div style="font-size:13px;color:#e2e8f0;font-weight:500">${v}</div></div>`).join('')}
-          <div>
-            <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Truck</div>
-            ${j.truck && j.truckConfirmed
-              ? `<div style="font-size:13px;color:#e2e8f0;font-weight:500">${j.truck}</div>`
-              : `${j.clientConfirmed ? '' : `<div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-                  <input id="truck-edit-${j.id}" value="${j.truck||''}" placeholder="Enter vehicle no."
-                    style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:5px 8px;color:#e2e8f0;font-size:12px;width:110px;outline:none"/>
-                  <button onclick="saveTruck('${j.id}')" style="background:#0c2a3a;border:1px solid #38bdf8;border-radius:6px;padding:5px 10px;color:#38bdf8;font-size:11px;cursor:pointer">✓ Save</button>
-                </div>`}`}
-          </div>
+          ${(j.vehicleMake||j.vehicleModel||j.vehicleYear) ? `
+          <div style="grid-column:1/-1;background:#0c1829;border-radius:8px;padding:10px 12px;margin-top:4px">
+            <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Vehicle Details</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+              ${j.vehicleMake?`<div><div style="font-size:10px;color:#475569">Make</div><div style="font-size:13px;color:#e2e8f0;font-weight:500">${j.vehicleMake}</div></div>`:''}
+              ${j.vehicleModel?`<div><div style="font-size:10px;color:#475569">Model</div><div style="font-size:13px;color:#e2e8f0;font-weight:500">${j.vehicleModel}</div></div>`:''}
+              ${j.vehicleYear?`<div><div style="font-size:10px;color:#475569">Year</div><div style="font-size:13px;color:#e2e8f0;font-weight:500">${j.vehicleYear}</div></div>`:''}
+            </div>
+          </div>` : ''}
         </div>
       </div>
     </div>
+    ${j.status==='Pending Acceptance' ? `
+    <div class="card" style="margin-top:14px;border-color:rgba(251,191,36,.2);background:#0d1117">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-weight:700;font-size:14px;color:#fbbf24">✏️ Edit Job Details</div>
+        <div style="font-size:11px;color:#64748b">Available while job is Pending Acceptance</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Location</label>
+          <input id="ce-location-${j.id}" class="form-input" style="font-size:13px;margin-top:4px" value="${(j.location||'').replace(/"/g,'&quot;')}" placeholder="Location"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Truck / Vehicle No.</label>
+          <input id="ce-truck-${j.id}" class="form-input" style="font-size:13px;margin-top:4px" value="${(j.truck||'').replace(/"/g,'&quot;')}" placeholder="Truck number"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Contact Person</label>
+          <input id="ce-contact-name-${j.id}" class="form-input" style="font-size:13px;margin-top:4px" value="${(j.contactName||'').replace(/"/g,'&quot;')}" placeholder="On-site contact"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Contact Number</label>
+          <input id="ce-contact-phone-${j.id}" class="form-input" style="font-size:13px;margin-top:4px" value="${(j.contactPhone||'').replace(/"/g,'&quot;')}" placeholder="Phone number" type="tel"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Service Date</label>
+          <input id="ce-date-${j.id}" class="form-input" style="font-size:13px;margin-top:4px" value="${j.date||''}" type="date"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Service Time</label>
+          <input id="ce-time-${j.id}" class="form-input" style="font-size:13px;margin-top:4px" value="${j.time||''}" type="time"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Vehicle Make</label>
+          <input id="ce-vmake-${j.id}" class="form-input" style="font-size:13px;margin-top:4px" value="${(j.vehicleMake||'').replace(/"/g,'&quot;')}" placeholder="e.g. Toyota"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Vehicle Model</label>
+          <input id="ce-vmodel-${j.id}" class="form-input" style="font-size:13px;margin-top:4px" value="${(j.vehicleModel||'').replace(/"/g,'&quot;')}" placeholder="e.g. Hilux"/>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em">Vehicle Year</label>
+          <input id="ce-vyear-${j.id}" class="form-input" style="font-size:13px;margin-top:4px" value="${j.vehicleYear||''}" placeholder="e.g. 2022" type="number" min="1990" max="2099"/>
+        </div>
+      </div>
+      <div id="ce-msg-${j.id}" style="font-size:12px;margin-top:8px"></div>
+      <button onclick="clientEditSave('${j.id}')" class="btn-primary" style="margin-top:12px;font-size:13px;padding:9px 20px">💾 Save Changes</button>
+    </div>` : ''}
     ${renderActivityLog(j)}
 
     ${proposalHTML}
@@ -852,6 +899,37 @@ function clientSystemProblemShow(jobId){
 }
 // clientSystemProblemSubmit defined above
 
+async function clientEditSave(jobId) {
+  const fields = {
+    location:     document.getElementById('ce-location-'+jobId)?.value.trim(),
+    truck:        document.getElementById('ce-truck-'+jobId)?.value.trim(),
+    contactName:  document.getElementById('ce-contact-name-'+jobId)?.value.trim(),
+    contactPhone: document.getElementById('ce-contact-phone-'+jobId)?.value.trim(),
+    date:         document.getElementById('ce-date-'+jobId)?.value,
+    time:         document.getElementById('ce-time-'+jobId)?.value,
+    vehicleMake:  document.getElementById('ce-vmake-'+jobId)?.value.trim()||null,
+    vehicleModel: document.getElementById('ce-vmodel-'+jobId)?.value.trim()||null,
+    vehicleYear:  document.getElementById('ce-vyear-'+jobId)?.value.trim()||null,
+  };
+  const msgEl = document.getElementById('ce-msg-'+jobId);
+  try {
+    const res = await apiFetch(capi('/jobs/'+jobId+'/client-update'), {
+      method:'POST', body:JSON.stringify(fields)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (msgEl) { msgEl.style.color='#34d399'; msgEl.textContent='Saved!'; setTimeout(()=>msgEl.textContent='',2500); }
+      const updated = await (await apiFetch(capi('/jobs/'+jobId))).json();
+      const idx = jobs.findIndex(j=>j.id===jobId);
+      if (idx>=0) jobs[idx]=updated;
+      renderDetail(jobId);
+    } else {
+      if (msgEl) { msgEl.style.color='#f87171'; msgEl.textContent=data.error||'Error saving'; }
+    }
+  } catch(e) {
+    if (msgEl) { msgEl.style.color='#f87171'; msgEl.textContent='Network error'; }
+  }
+}
 async function saveTruck(jobId){
   const val = document.getElementById('truck-edit-'+jobId)?.value.trim();
   if(!val){ alert('Please enter a truck number.'); return; }
